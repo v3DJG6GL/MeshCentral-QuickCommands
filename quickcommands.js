@@ -55,6 +55,8 @@ module.exports.quickcommands = function (parent) {
         'qcIntercept',
         'qcFinish',
         'qcShowOutput',
+        'qcShowRunning',
+        'qcCancelRun',
         'qcCopyOutput',
         'qcFmtMs',
         'qcClearLog'
@@ -221,9 +223,10 @@ module.exports.quickcommands = function (parent) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         var busy = false; for (var k in st.pending) { if (st.pending[k].cmd.id == c.id) busy = true; }
         var cls = 'qcKey' + (c.confirm ? ' danger' : '') + (c.mode == 'terminal' ? ' termMode' : '') + (busy ? ' busy' : '');
-        var sub = busy ? ('Running…') : c.command.split(/\r?\n/)[0];
+        var sub = busy ? ('Running… (view / cancel)') : c.command.split(/\r?\n/)[0];
         var title = (c.description ? c.description + '\n' : '') + c.command + (c.mode == 'terminal' ? '\n(typed into the terminal)' : '');
-        return '<button type="button" class="' + cls + '" title="' + Q.qcEsc(title) + '" onclick="return pluginHandler.quickcommands.qcRun(\'' + Q.qcEsc(c.id) + '\',\'' + where + '\')"' + (busy ? ' disabled' : '') + '>'
+        var click = busy ? ('qcShowRunning(\'' + Q.qcEsc(c.id) + '\')') : ('qcRun(\'' + Q.qcEsc(c.id) + '\',\'' + where + '\')');
+        return '<button type="button" class="' + cls + '" title="' + Q.qcEsc(title) + '" onclick="return pluginHandler.quickcommands.' + click + '">'
             + '<span class="qcN"><span class="qcTag ' + c.shell + '">' + Q.qcEsc(c.shell == 'ps' ? 'PS' : c.shell.toUpperCase()) + '</span>' + Q.qcEsc(c.name) + '</span>'
             + '<span class="qcC">' + Q.qcEsc(sub) + '</span></button>';
     };
@@ -404,6 +407,9 @@ module.exports.quickcommands = function (parent) {
         var cmd = null; st.config.commands.forEach(function (c) { if (c.id == id) cmd = c; });
         if (cmd == null) return false;
         Q.qcCloseMenu();
+        // Already running? Show the live output instead of queueing a second run
+        // (the agent executes one run command at a time and rejects the rest).
+        for (var k in st.pending) { if (st.pending[k].cmd.id == id) { return Q.qcShowRunning(id); } }
         if (cmd.confirm) {
             var html = '<div class="qcOutH"><span class="qcTag ' + cmd.shell + '">' + Q.qcEsc(cmd.shell == 'ps' ? 'PS' : cmd.shell.toUpperCase()) + '</span><b>' + Q.qcEsc(cmd.name) + '</b><span>on ' + Q.qcEsc(currentNode.name) + '</span></div>'
                 + '<pre class="qcOut" style="max-height:120px">' + Q.qcEsc(cmd.command) + '</pre>'
@@ -429,9 +435,11 @@ module.exports.quickcommands = function (parent) {
         var entry = { cmd: cmd, state: 'running', time: new Date().toLocaleTimeString(), start: Date.now(), output: '', rid: rid };
         st.log.unshift(entry); if (st.log.length > 50) st.log.pop();
         st.pending[rid] = entry;
-        // Agent console commands have no reply channel: collect console output for a short while instead.
-        if (cmd.shell == 'agent') { entry.collect = true; entry.timer = setTimeout(function () { pluginHandler.quickcommands.qcFinish(rid, null); }, 4000); }
-        else { entry.timer = setTimeout(function () { pluginHandler.quickcommands.qcFinish(rid, 'No reply after 5 minutes'); }, 300000); }
+        // The agent streams everything the command prints to the console channel while it
+        // runs (the reply only arrives when the shell exits), so collect it for live output.
+        entry.collect = true;
+        if (cmd.shell == 'agent') { entry.timer = setTimeout(function () { pluginHandler.quickcommands.qcFinish(rid, null); }, 4000); }
+        else { entry.timer = setTimeout(function () { pluginHandler.quickcommands.qcFinish(rid, 'No reply from the agent after 5 minutes. The command is probably still running or waiting for input on the device; the agent accepts no new run commands until it ends (or the agent restarts).'); }, 300000); }
         meshserver.send({ action: 'runcommands', nodeids: [currentNode._id], type: types[cmd.shell] || 1, cmds: cmd.command, runAsUser: (cmd.runAs | 0), reply: true, responseid: rid });
         Q.qcRenderAll();
     };
@@ -448,7 +456,25 @@ module.exports.quickcommands = function (parent) {
             if (r == 'OK') { if (!st.pending[message.responseid].collect) { /* reply will follow */ } }
             else { Q.qcFinish(message.responseid, (typeof r == 'string') ? r : 'Failed'); }
         } else if ((message.action == 'msg') && (message.type == 'console') && (typeof message.value == 'string')) {
-            for (var k in st.pending) { var e = st.pending[k]; if (e.collect && (message.nodeid == currentNode._id)) { e.output += message.value + '\n'; } }
+            if ((currentNode == null) || (message.nodeid != currentNode._id)) return;
+            // The agent runs one command at a time; a second one is rejected with this
+            // console message and never gets a reply, so fail it right away.
+            if (message.value.indexOf('Run commands can\'t execute, already busy') != -1) {
+                var newest = null;
+                for (var k in st.pending) { var e = st.pending[k]; if ((e.cmd.shell != 'agent') && ((Date.now() - e.start) < 15000) && ((newest == null) || (e.start > newest.start))) { newest = e; } }
+                if (newest != null) { Q.qcFinish(newest.rid, 'The agent is still busy with an earlier run command - it executes one at a time and rejected this one. Wait for the running command to end, or restart the agent.'); return; }
+            }
+            for (var k in st.pending) {
+                var e = st.pending[k];
+                if (e.collect) {
+                    e.output += message.value + '\n';
+                    // Live-update the output window when it is showing this run.
+                    if (typeof xxdialogMode != 'undefined' && xxdialogMode) {
+                        var pre = document.getElementById('qcOutPre');
+                        if (pre && (pre.getAttribute('data-rid') == e.rid)) { pre.textContent = e.output; pre.scrollTop = pre.scrollHeight; }
+                    }
+                }
+            }
         }
     };
 
@@ -461,8 +487,36 @@ module.exports.quickcommands = function (parent) {
         e.state = error ? 'error' : 'done';
         e.error = error;
         Q.qcRenderAll();
+        // If the output window is already open on this run, update it in place.
+        if (typeof xxdialogMode != 'undefined' && xxdialogMode) {
+            var pre = document.getElementById('qcOutPre');
+            if (pre && (pre.getAttribute('data-rid') == rid)) {
+                pre.textContent = (e.output && e.output.length) ? e.output : '(no output)';
+                var stat = document.getElementById('qcOutStatus');
+                if (stat) { stat.innerHTML = error ? ('<span class="qcErr">' + Q.qcEsc(error) + '</span>') : ('<span class="qcOk">' + Q.qcFmtMs(e.ms) + '</span>'); }
+                var btns = document.getElementById('qcOutBtns');
+                if (btns) { btns.innerHTML = '<input type="button" value="Copy" onclick="return pluginHandler.quickcommands.qcCopyOutput(' + st.log.indexOf(e) + ')" />&nbsp;<input type="button" value="Run again" onclick="return pluginHandler.quickcommands.qcRunAgain(\'' + Q.qcEsc(e.cmd.id) + '\')" />'; }
+                return;
+            }
+        }
         // Show the result when the user is still looking at this device.
         if ((currentNode != null) && (st.nodeid == currentNode._id) && (xxcurrentView >= 10) && (xxcurrentView < 20) && !xxdialogMode) { Q.qcShowOutput(st.log.indexOf(e)); }
+    };
+
+    // Stop waiting for a run that never replies. This only releases the browser side:
+    // the process keeps running on the device until it ends on its own.
+    obj.qcCancelRun = function (rid) {
+        var Q = pluginHandler.quickcommands, st = Q.qcState();
+        if (st.pending[rid] == null) return false;
+        Q.qcFinish(rid, 'Cancelled. The command may still be running on the device; the agent accepts new run commands only once it ends (or the agent restarts).');
+        return false;
+    };
+
+    // Open the output window of the run that is currently pending for a command.
+    obj.qcShowRunning = function (cmdid) {
+        var Q = pluginHandler.quickcommands, st = Q.qcState();
+        for (var k in st.pending) { if (st.pending[k].cmd.id == cmdid) { return Q.qcShowOutput(st.log.indexOf(st.pending[k])); } }
+        return false;
     };
 
     obj.qcShowOutput = function (idx) {
@@ -471,11 +525,14 @@ module.exports.quickcommands = function (parent) {
         if (xxdialogMode) return false;
         var status = (e.state == 'error') ? '<span class="qcErr">' + Q.qcEsc(e.error) + '</span>' : (e.state == 'running' ? '<span class="qcMuted">running…</span>' : (e.state == 'typed' ? '<span class="qcMuted">typed into terminal</span>' : '<span class="qcOk">' + Q.qcFmtMs(e.ms) + '</span>'));
         var runAs = ['as agent', 'as user if signed in', 'as user'][e.cmd.runAs | 0] || '';
-        var body = (e.output && e.output.length) ? Q.qcEsc(e.output) : '<span class="qcMuted">(no output' + (e.cmd.shell == 'agent' ? ' captured; see the Console tab' : '') + ')</span>';
-        var html = '<div class="qcOutH"><span class="qcTag ' + e.cmd.shell + '">' + Q.qcEsc(e.cmd.shell == 'ps' ? 'PS' : e.cmd.shell.toUpperCase()) + '</span><b>' + Q.qcEsc(e.cmd.name) + '</b><span>on ' + Q.qcEsc(currentNode ? currentNode.name : '') + '</span><span class="qcGrow"></span>' + status + '</div>'
+        var body = (e.output && e.output.length) ? Q.qcEsc(e.output) : '<span class="qcMuted">(no output' + (e.state == 'running' ? ' yet' : (e.cmd.shell == 'agent' ? ' captured; see the Console tab' : '')) + ')</span>';
+        var buttons = (e.state == 'running')
+            ? '<input type="button" value="Copy" onclick="return pluginHandler.quickcommands.qcCopyOutput(' + idx + ')" />&nbsp;<input type="button" value="Cancel" onclick="return pluginHandler.quickcommands.qcCancelRun(\'' + Q.qcEsc(e.rid) + '\')" />'
+            : '<input type="button" value="Copy" onclick="return pluginHandler.quickcommands.qcCopyOutput(' + idx + ')" />&nbsp;<input type="button" value="Run again" onclick="return pluginHandler.quickcommands.qcRunAgain(\'' + Q.qcEsc(e.cmd.id) + '\')" />';
+        var html = '<div class="qcOutH"><span class="qcTag ' + e.cmd.shell + '">' + Q.qcEsc(e.cmd.shell == 'ps' ? 'PS' : e.cmd.shell.toUpperCase()) + '</span><b>' + Q.qcEsc(e.cmd.name) + '</b><span>on ' + Q.qcEsc(currentNode ? currentNode.name : '') + '</span><span class="qcGrow"></span><span id="qcOutStatus">' + status + '</span></div>'
             + '<div class="qcOutH"><span class="qcC">' + Q.qcEsc(e.cmd.command.split(/\r?\n/)[0]) + '</span><span class="qcGrow"></span><span>' + runAs + '</span></div>'
-            + '<pre class="qcOut" id="qcOutPre">' + body + '</pre>'
-            + '<div style="margin-top:8px;text-align:right"><input type="button" value="Copy" onclick="return pluginHandler.quickcommands.qcCopyOutput(' + idx + ')" />&nbsp;<input type="button" value="Run again" onclick="return pluginHandler.quickcommands.qcRunAgain(\'' + Q.qcEsc(e.cmd.id) + '\')" /></div>';
+            + '<pre class="qcOut" id="qcOutPre"' + (e.rid ? (' data-rid="' + Q.qcEsc(e.rid) + '"') : '') + '>' + body + '</pre>'
+            + '<div style="margin-top:8px;text-align:right" id="qcOutBtns">' + buttons + '</div>';
         Q.qcDialog('Quick command', 1, null, html, true);
         return false;
     };
@@ -540,7 +597,7 @@ module.exports.quickcommands = function (parent) {
                 { id: 'ipconfig', name: 'IP config', group: 'Network', shell: 'cmd', command: 'ipconfig /all', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: 'Full adapter, DNS and DHCP details.' },
                 { id: 'flushdns', name: 'Flush DNS', group: 'Network', shell: 'cmd', command: 'ipconfig /flushdns', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: false, description: '' },
                 { id: 'netinfo', name: 'Network info', group: 'Network', shell: 'agent', command: 'netinfo', mode: 'run', runAs: 0, showTerminal: false, showGeneral: true, confirm: false, description: 'Interfaces as the agent sees them.' },
-                { id: 'gpupdate', name: 'Group policy', group: 'Policy', shell: 'cmd', command: 'gpupdate /force', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: 'Re-applies computer and user policy. Takes a while.' },
+                { id: 'gpupdate', name: 'Group policy', group: 'Policy', shell: 'cmd', command: 'echo n | gpupdate /force', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: 'Re-applies computer and user policy. Takes a while. The piped "n" answers a possible logoff/restart question with No so the run cannot get stuck.' },
                 { id: 'restart', name: 'Restart now', group: 'Power', shell: 'cmd', command: 'shutdown /r /f /t 0', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: true, description: 'Forces all programs to close and restarts immediately.' },
                 { id: 'linuxreboot', name: 'Reboot', group: 'Linux', shell: 'sh', command: 'systemctl reboot', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: true, description: '' },
                 { id: 'linuxdf', name: 'Disk usage', group: 'Linux', shell: 'sh', command: 'df -h', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: '' }

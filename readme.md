@@ -17,7 +17,7 @@ Every key shows its **name and the literal command**, a badge for the shell (`CM
 
 Two ways a key can run:
 
-- **Run, show output** — runs in the background through the agent (like MeshCentral's *Run Commands*), as the agent or as the signed-in user. The output opens in a window when it is done and is kept in the run log.
+- **Run, show output** — runs in the background through the agent (like MeshCentral's *Run Commands*), as the agent or as the signed-in user. The output streams live into a window while the command runs, can be cancelled there, and is kept in the run log.
 - **Type into terminal** — opens the Terminal tab, connects if needed, and types the command followed by Enter. Use this for anything interactive (`netsh`, `diskpart`, prompts that ask *Y/N*). Keys of this kind are marked `›_`.
 
 Keys can be flagged **Ask before running**: they get a red hazard stripe and a confirmation that shows the exact command.
@@ -51,7 +51,8 @@ one, selected per user or with `"sitestyle": 3` in the domain configuration.
 
 - Commands in *Run, show output* mode also echo into the device's **Console** tab — that is how the agent reports them and cannot be changed by a plugin.
 - *Agent console* commands (`netinfo`, `ps`, `services`, …) have no reply channel; the plugin collects what the agent prints for a few seconds and shows that.
-- Agents run one background command at a time. A second key pressed while one is still running is rejected by the agent ("already busy") — wait for the first to finish.
+- Agents run **one background command at a time**. A second key pressed while one is still running fails immediately with "the agent is still busy". *Cancel* in the output window only stops waiting — the agent offers no way to kill the process, so it stays busy until the command ends on its own (or the agent restarts).
+- A background command that **asks a question** (`gpupdate /force` asking to log off, `choice`, `pause`) waits for an answer forever and blocks the agent. Pipe the answer in (`echo n | gpupdate /force`) or use *Type into terminal* mode for it.
 - MeshCentral's own `preconfiguredscripts` (config.json) still work; this plugin is the live-editable alternative.
 
 ## License
