@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.3
+
+- Cancel now really cancels: it kills the running command on the device through
+  the agent console (`taskkill /F /T` on Windows takes the command's own process
+  down with the shell), which frees the agent for new run commands and brings
+  back the output collected so far. Needs agent console rights; without them the
+  browser side is released after 10 seconds as before.
+- New **Free the agent** button on "agent is still busy" and timeout errors:
+  kills whatever run command is blocking the agent, also one started by someone
+  else or before a page reload - no more agent restart to recover.
+- The example "Group policy" key is now
+  `chcp 65001 >nul & echo n | gpupdate /force`: gpupdate buffers its output when
+  it goes to a pipe, so everything appears at the end - chcp 65001 keeps umlauts
+  readable in what comes back.
+
 ## 0.1.2
 
 - Live output: the output window now opens while a command is still running and

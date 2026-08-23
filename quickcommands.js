@@ -57,6 +57,9 @@ module.exports.quickcommands = function (parent) {
         'qcShowOutput',
         'qcShowRunning',
         'qcCancelRun',
+        'qcSendKill',
+        'qcFreeAgent',
+        'qcButtonsHtml',
         'qcCopyOutput',
         'qcFmtMs',
         'qcClearLog'
@@ -439,7 +442,7 @@ module.exports.quickcommands = function (parent) {
         // runs (the reply only arrives when the shell exits), so collect it for live output.
         entry.collect = true;
         if (cmd.shell == 'agent') { entry.timer = setTimeout(function () { pluginHandler.quickcommands.qcFinish(rid, null); }, 4000); }
-        else { entry.timer = setTimeout(function () { pluginHandler.quickcommands.qcFinish(rid, 'No reply from the agent after 5 minutes. The command is probably still running or waiting for input on the device; the agent accepts no new run commands until it ends (or the agent restarts).'); }, 300000); }
+        else { entry.timer = setTimeout(function () { var Q2 = pluginHandler.quickcommands, e2 = Q2.qcState().pending[rid]; if (e2) e2.canKill = true; Q2.qcFinish(rid, 'No reply from the agent after 5 minutes. The command is probably still running or waiting for input on the device and blocks further run commands. "Free the agent" kills it on the device.'); }, 300000); }
         meshserver.send({ action: 'runcommands', nodeids: [currentNode._id], type: types[cmd.shell] || 1, cmds: cmd.command, runAsUser: (cmd.runAs | 0), reply: true, responseid: rid });
         Q.qcRenderAll();
     };
@@ -449,8 +452,9 @@ module.exports.quickcommands = function (parent) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         if ((message == null) || (typeof message != 'object')) return;
         if ((message.action == 'msg') && (message.type == 'runcommands') && (message.responseid != null) && st.pending[message.responseid]) {
-            st.pending[message.responseid].output = (typeof message.result == 'string') ? message.result : JSON.stringify(message.result);
-            Q.qcFinish(message.responseid, null);
+            var pe = st.pending[message.responseid];
+            pe.output = (typeof message.result == 'string') ? message.result : JSON.stringify(message.result);
+            Q.qcFinish(message.responseid, pe.cancelling ? 'Cancelled - the command was stopped on the device.' : null);
         } else if ((message.action == 'runcommands') && (message.responseid != null) && st.pending[message.responseid]) {
             var r = message.result;
             if (r == 'OK') { if (!st.pending[message.responseid].collect) { /* reply will follow */ } }
@@ -462,7 +466,7 @@ module.exports.quickcommands = function (parent) {
             if (message.value.indexOf('Run commands can\'t execute, already busy') != -1) {
                 var newest = null;
                 for (var k in st.pending) { var e = st.pending[k]; if ((e.cmd.shell != 'agent') && ((Date.now() - e.start) < 15000) && ((newest == null) || (e.start > newest.start))) { newest = e; } }
-                if (newest != null) { Q.qcFinish(newest.rid, 'The agent is still busy with an earlier run command - it executes one at a time and rejected this one. Wait for the running command to end, or restart the agent.'); return; }
+                if (newest != null) { newest.canKill = true; Q.qcFinish(newest.rid, 'The agent is still busy with an earlier run command - it executes one at a time and rejected this one. "Free the agent" kills the stuck command on the device.'); return; }
             }
             for (var k in st.pending) {
                 var e = st.pending[k];
@@ -495,7 +499,7 @@ module.exports.quickcommands = function (parent) {
                 var stat = document.getElementById('qcOutStatus');
                 if (stat) { stat.innerHTML = error ? ('<span class="qcErr">' + Q.qcEsc(error) + '</span>') : ('<span class="qcOk">' + Q.qcFmtMs(e.ms) + '</span>'); }
                 var btns = document.getElementById('qcOutBtns');
-                if (btns) { btns.innerHTML = '<input type="button" value="Copy" onclick="return pluginHandler.quickcommands.qcCopyOutput(' + st.log.indexOf(e) + ')" />&nbsp;<input type="button" value="Run again" onclick="return pluginHandler.quickcommands.qcRunAgain(\'' + Q.qcEsc(e.cmd.id) + '\')" />'; }
+                if (btns) { btns.innerHTML = Q.qcButtonsHtml(e, st.log.indexOf(e)); }
                 return;
             }
         }
@@ -503,13 +507,50 @@ module.exports.quickcommands = function (parent) {
         if ((currentNode != null) && (st.nodeid == currentNode._id) && (xxcurrentView >= 10) && (xxcurrentView < 20) && !xxdialogMode) { Q.qcShowOutput(st.log.indexOf(e)); }
     };
 
-    // Stop waiting for a run that never replies. This only releases the browser side:
-    // the process keeps running on the device until it ends on its own.
+    // Kill the run-commands shell on the device. meshcore keeps it in mesh.cmdchild
+    // and frees the run-commands slot when it exits; there is no protocol message for
+    // this, so it goes through the agent console's 'eval' command (which the server
+    // only routes for users with agent console rights). On Windows taskkill /T also
+    // takes the command's own process (gpupdate, ...) down with the shell.
+    obj.qcSendKill = function () {
+        if ((currentNode == null) || (typeof meshserver != 'object') || (meshserver == null)) return;
+        var js = "(function(){var c=require('MeshAgent').cmdchild;if(c==null){return 'quickcommands: nothing to kill';}var p=c.pid;if((process.platform=='win32')&&p){require('child_process').execFile(process.env['windir']+'\\\\system32\\\\taskkill.exe',['taskkill','/F','/T','/PID',''+p]);}try{c.kill();}catch(e){}return 'quickcommands: kill requested';})()";
+        meshserver.send({ action: 'msg', type: 'console', nodeid: currentNode._id, value: 'eval "' + js + '"' });
+    };
+
+    // Cancel a running command: ask the agent to kill it. When the kill works the
+    // shell exits and its reply closes the entry with the output so far; when the
+    // agent does not confirm within 10 seconds, release the browser side anyway.
     obj.qcCancelRun = function (rid) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
-        if (st.pending[rid] == null) return false;
-        Q.qcFinish(rid, 'Cancelled. The command may still be running on the device; the agent accepts new run commands only once it ends (or the agent restarts).');
+        var e = st.pending[rid]; if (e == null) return false;
+        if (e.cmd.shell == 'agent') { Q.qcFinish(rid, 'Cancelled.'); return false; }
+        if (e.cancelling) return false;
+        e.cancelling = true;
+        Q.qcSendKill();
+        if (e.timer) clearTimeout(e.timer);
+        e.timer = setTimeout(function () { pluginHandler.quickcommands.qcFinish(rid, 'Cancelled, but the agent did not confirm the kill (it needs agent console rights and a connected agent). The command may still be running and blocks further run commands until it ends or the agent restarts.'); }, 10000);
+        var pre = document.getElementById('qcOutPre');
+        if (pre && (pre.getAttribute('data-rid') == rid)) { var s2 = document.getElementById('qcOutStatus'); if (s2) s2.innerHTML = '<span class="qcMuted">cancelling…</span>'; }
         return false;
+    };
+
+    // "Free the agent": kill whatever run command is blocking it, whoever started it.
+    obj.qcFreeAgent = function (btn) {
+        pluginHandler.quickcommands.qcSendKill();
+        if (btn) { btn.value = 'Kill sent'; btn.disabled = true; }
+        return false;
+    };
+
+    obj.qcButtonsHtml = function (e, idx) {
+        var Q = pluginHandler.quickcommands;
+        var x = '<input type="button" value="Copy" onclick="return pluginHandler.quickcommands.qcCopyOutput(' + idx + ')" />';
+        if (e.state == 'running') { x += '&nbsp;<input type="button" value="Cancel" onclick="return pluginHandler.quickcommands.qcCancelRun(\'' + Q.qcEsc(e.rid) + '\')" />'; }
+        else {
+            if (e.canKill) { x += '&nbsp;<input type="button" value="Free the agent" title="Kills the stuck command on the device so the agent accepts run commands again (needs agent console rights)" onclick="return pluginHandler.quickcommands.qcFreeAgent(this)" />'; }
+            x += '&nbsp;<input type="button" value="Run again" onclick="return pluginHandler.quickcommands.qcRunAgain(\'' + Q.qcEsc(e.cmd.id) + '\')" />';
+        }
+        return x;
     };
 
     // Open the output window of the run that is currently pending for a command.
@@ -526,9 +567,7 @@ module.exports.quickcommands = function (parent) {
         var status = (e.state == 'error') ? '<span class="qcErr">' + Q.qcEsc(e.error) + '</span>' : (e.state == 'running' ? '<span class="qcMuted">running…</span>' : (e.state == 'typed' ? '<span class="qcMuted">typed into terminal</span>' : '<span class="qcOk">' + Q.qcFmtMs(e.ms) + '</span>'));
         var runAs = ['as agent', 'as user if signed in', 'as user'][e.cmd.runAs | 0] || '';
         var body = (e.output && e.output.length) ? Q.qcEsc(e.output) : '<span class="qcMuted">(no output' + (e.state == 'running' ? ' yet' : (e.cmd.shell == 'agent' ? ' captured; see the Console tab' : '')) + ')</span>';
-        var buttons = (e.state == 'running')
-            ? '<input type="button" value="Copy" onclick="return pluginHandler.quickcommands.qcCopyOutput(' + idx + ')" />&nbsp;<input type="button" value="Cancel" onclick="return pluginHandler.quickcommands.qcCancelRun(\'' + Q.qcEsc(e.rid) + '\')" />'
-            : '<input type="button" value="Copy" onclick="return pluginHandler.quickcommands.qcCopyOutput(' + idx + ')" />&nbsp;<input type="button" value="Run again" onclick="return pluginHandler.quickcommands.qcRunAgain(\'' + Q.qcEsc(e.cmd.id) + '\')" />';
+        var buttons = Q.qcButtonsHtml(e, idx);
         var html = '<div class="qcOutH"><span class="qcTag ' + e.cmd.shell + '">' + Q.qcEsc(e.cmd.shell == 'ps' ? 'PS' : e.cmd.shell.toUpperCase()) + '</span><b>' + Q.qcEsc(e.cmd.name) + '</b><span>on ' + Q.qcEsc(currentNode ? currentNode.name : '') + '</span><span class="qcGrow"></span><span id="qcOutStatus">' + status + '</span></div>'
             + '<div class="qcOutH"><span class="qcC">' + Q.qcEsc(e.cmd.command.split(/\r?\n/)[0]) + '</span><span class="qcGrow"></span><span>' + runAs + '</span></div>'
             + '<pre class="qcOut" id="qcOutPre"' + (e.rid ? (' data-rid="' + Q.qcEsc(e.rid) + '"') : '') + '>' + body + '</pre>'
@@ -597,7 +636,7 @@ module.exports.quickcommands = function (parent) {
                 { id: 'ipconfig', name: 'IP config', group: 'Network', shell: 'cmd', command: 'ipconfig /all', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: 'Full adapter, DNS and DHCP details.' },
                 { id: 'flushdns', name: 'Flush DNS', group: 'Network', shell: 'cmd', command: 'ipconfig /flushdns', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: false, description: '' },
                 { id: 'netinfo', name: 'Network info', group: 'Network', shell: 'agent', command: 'netinfo', mode: 'run', runAs: 0, showTerminal: false, showGeneral: true, confirm: false, description: 'Interfaces as the agent sees them.' },
-                { id: 'gpupdate', name: 'Group policy', group: 'Policy', shell: 'cmd', command: 'echo n | gpupdate /force', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: 'Re-applies computer and user policy. Takes a while. The piped "n" answers a possible logoff/restart question with No so the run cannot get stuck.' },
+                { id: 'gpupdate', name: 'Group policy', group: 'Policy', shell: 'cmd', command: 'chcp 65001 >nul & echo n | gpupdate /force', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: 'Re-applies computer and user policy; gpupdate buffers, so the output appears when it finishes. The piped "n" answers a possible restart question with No so the run cannot get stuck; chcp 65001 keeps umlauts readable.' },
                 { id: 'restart', name: 'Restart now', group: 'Power', shell: 'cmd', command: 'shutdown /r /f /t 0', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: true, description: 'Forces all programs to close and restarts immediately.' },
                 { id: 'linuxreboot', name: 'Reboot', group: 'Linux', shell: 'sh', command: 'systemctl reboot', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: true, description: '' },
                 { id: 'linuxdf', name: 'Disk usage', group: 'Linux', shell: 'sh', command: 'df -h', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: '' }

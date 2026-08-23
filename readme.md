@@ -51,8 +51,10 @@ one, selected per user or with `"sitestyle": 3` in the domain configuration.
 
 - Commands in *Run, show output* mode also echo into the device's **Console** tab — that is how the agent reports them and cannot be changed by a plugin.
 - *Agent console* commands (`netinfo`, `ps`, `services`, …) have no reply channel; the plugin collects what the agent prints for a few seconds and shows that.
-- Agents run **one background command at a time**. A second key pressed while one is still running fails immediately with "the agent is still busy". *Cancel* in the output window only stops waiting — the agent offers no way to kill the process, so it stays busy until the command ends on its own (or the agent restarts).
-- A background command that **asks a question** (`gpupdate /force` asking to log off, `choice`, `pause`) waits for an answer forever and blocks the agent. Pipe the answer in (`echo n | gpupdate /force`) or use *Type into terminal* mode for it.
+- Agents run **one background command at a time**. A second key pressed while one is still running fails immediately with "the agent is still busy"; the error offers **Free the agent**, which kills the blocking command on the device. *Cancel* in the output window does the same for your own run. Both go through the agent console (`eval`), so they need agent console rights on the device.
+- A background command that **asks a question** (`gpupdate /force` asking to restart, `choice`, `pause`) waits for an answer forever and blocks the agent. Pipe the answer in (`echo n | gpupdate /force`) or use *Type into terminal* mode for it.
+- Some programs **buffer their output** when it goes to a pipe instead of a console — `gpupdate` shows everything only when it finishes, so the live window may sit on the `cmd` banner for a while. That is the program's doing, not the agent's; run it in *Type into terminal* mode to watch it live.
+- On non-English Windows, command output comes back in the OEM codepage and umlauts turn into garbage. Prefix the command with `chcp 65001 >nul & ` to get clean UTF-8 (see the example gpupdate key).
 - MeshCentral's own `preconfiguredscripts` (config.json) still work; this plugin is the live-editable alternative.
 
 ## License
