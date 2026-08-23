@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Quick Commands</title>
+<style>
+:root {
+  --bg:#EEF1F4; --panel:#fff; --ink:#141B22; --muted:#5B6772; --faint:#8A96A1; --line:#D3DAE1; --line2:#E1E6EB; --ctl:#C4CCD4;
+  --acc:#2457D6; --acc-soft:#E6EDFB; --danger:#C8362B; --key-bg:#fff; --key-line:#AEB8C1; --key-hover:#f4f8f7;
+  --cmd:#3C5A78; --ps:#1E6BD6; --sh:#2C8C5A; --agent:#7A52C4;
+}
+body.night {
+  --bg:#0F1418; --panel:#171D23; --ink:#E3E8EC; --muted:#8A96A1; --faint:#66727D; --line:#2A333C; --line2:#232B33; --ctl:#3A4650;
+  --acc:#6A9BFF; --acc-soft:#1D2A44; --danger:#FF8A7E; --key-bg:#1C2229; --key-line:#3F4B56; --key-hover:#222A32;
+}
+* { box-sizing:border-box; }
+html, body { height:100%; }
+body { margin:0; font-family:"Segoe UI", system-ui, -apple-system, sans-serif; font-size:13px; color:var(--ink); background:var(--bg); }
+a { color:var(--acc); } a:hover { color:var(--acc); }
+button, input, select, textarea { font:inherit; color:inherit; }
+.mono { font-family:"Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace; }
+
+.app { display:flex; flex-direction:column; height:100%; }
+.hdr { display:flex; align-items:center; gap:10px; padding:12px 22px; background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+.title { font-size:18px; font-weight:600; letter-spacing:-0.2px; }
+.sub { color:var(--muted); font-size:12px; }
+.grow { flex-grow:1; }
+.btn { padding:6px 12px; border:1px solid var(--ctl); border-radius:4px; background:var(--panel); color:var(--ink); cursor:pointer; }
+.btn:hover { background:var(--key-hover); }
+.btn.primary { background:var(--acc); border-color:var(--acc); color:#fff; font-weight:600; }
+.btn.primary:hover { filter:brightness(1.08); background:var(--acc); }
+.btn.primary:disabled { opacity:0.5; cursor:default; filter:none; }
+.btn.quiet { border-color:transparent; background:transparent; color:var(--muted); }
+.btn.quiet:hover { background:var(--key-hover); color:var(--ink); }
+.btn.danger { color:var(--danger); }
+.btn:focus-visible, .key:focus-visible, .in:focus-visible, .seg button:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+.dirty { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+.dirty i { width:8px; height:8px; border-radius:50%; background:var(--faint); display:inline-block; }
+.dirty.on i { background:#D98E04; }
+.dirty.saved i { background:var(--sh); }
+.dirty.err { color:var(--danger); } .dirty.err i { background:var(--danger); }
+
+.main { display:flex; flex-grow:1; min-height:0; }
+.side { width:210px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--line); padding:14px 0; display:flex; flex-direction:column; gap:2px; overflow:auto; }
+.side .h { padding:4px 18px 6px; font-size:11px; text-transform:uppercase; letter-spacing:0.7px; color:var(--muted); }
+.side .it { display:flex; justify-content:space-between; align-items:center; gap:6px; padding:7px 18px; cursor:pointer; border:0; background:none; width:100%; text-align:left; color:var(--ink); }
+.side .it:hover { background:var(--key-hover); }
+.side .it.on { background:var(--acc-soft); color:var(--acc); font-weight:600; box-shadow:inset -3px 0 0 var(--acc); }
+.side .it .cnt { color:var(--faint); font-size:12px; }
+.side .it.add { color:var(--acc); }
+.side .setting { padding:6px 18px; display:flex; flex-direction:column; gap:5px; }
+
+.deck { flex-grow:1; padding:22px 26px; display:flex; flex-direction:column; gap:24px; overflow:auto; min-width:0; }
+.grp { display:flex; flex-direction:column; gap:10px; }
+.grpH { display:flex; align-items:center; gap:10px; }
+.grpH b { font-weight:600; }
+.grpH .tools { display:none; gap:4px; }
+.grpH:hover .tools { display:flex; }
+.keys { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-start; min-height:44px; }
+.keys.over { outline:2px dashed var(--acc); outline-offset:4px; border-radius:4px; }
+
+.key { display:inline-flex; flex-direction:column; gap:3px; padding:8px 12px 9px 11px; border:1px solid var(--key-line); border-bottom-width:3px; border-radius:4px; background:var(--key-bg); cursor:pointer; text-align:left; min-width:160px; max-width:300px; position:relative; }
+.key:hover { background:var(--key-hover); }
+.key:active { transform:translateY(1px); border-bottom-width:2px; }
+.key.sel { outline:2px solid var(--acc); outline-offset:2px; }
+.key.dragging { opacity:0.4; }
+.key .n { font-size:13px; line-height:16px; font-weight:600; display:flex; align-items:center; gap:6px; white-space:nowrap; overflow:hidden; }
+.key .n .name { overflow:hidden; text-overflow:ellipsis; }
+.key .c { font-family:"Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace; font-size:12px; line-height:14px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.key.term .n::after { content:"\203A_"; font-family:"Cascadia Mono", Consolas, monospace; font-size:10px; color:var(--faint); font-weight:normal; }
+.key.danger { border-color:var(--danger); padding-top:11px; }
+.key.danger::before { content:""; position:absolute; left:0; right:0; top:0; height:4px; background:repeating-linear-gradient(135deg,var(--danger) 0 6px,transparent 6px 10px); border-radius:3px 3px 0 0; }
+.key.ghost { border-style:dashed; border-bottom-width:1px; background:transparent; color:var(--muted); justify-content:center; align-items:center; min-width:120px; }
+.key.ghost:hover { color:var(--acc); border-color:var(--acc); }
+.tag { font-family:"Cascadia Mono", Consolas, monospace; font-size:9px; line-height:12px; font-weight:700; padding:0 4px; border-radius:2px; color:#fff; letter-spacing:0.4px; flex-shrink:0; }
+.tag.cmd { background:var(--cmd); } .tag.ps { background:var(--ps); } .tag.sh { background:var(--sh); } .tag.agent { background:var(--agent); }
+.where { display:inline-flex; gap:3px; margin-left:auto; padding-left:8px; }
+.where i { font-style:normal; font-size:9px; font-weight:700; padding:1px 4px; border-radius:2px; background:var(--acc-soft); color:var(--acc); font-family:"Cascadia Mono", Consolas, monospace; }
+.where i.off { background:var(--line2); color:var(--faint); }
+.empty { color:var(--muted); font-size:13px; padding:30px 0; max-width:520px; line-height:1.5; }
+
+.drawer { width:400px; flex-shrink:0; background:var(--panel); border-left:1px solid var(--line); padding:20px 22px; display:flex; flex-direction:column; gap:14px; overflow:auto; }
+.drawer.hidden { display:none; }
+.drawerH { display:flex; align-items:center; gap:8px; }
+.drawerH .t { font-weight:600; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.field { display:flex; flex-direction:column; gap:5px; }
+label { font-size:12px; color:var(--muted); }
+.in { padding:7px 9px; border:1px solid var(--ctl); border-radius:4px; background:var(--panel); color:var(--ink); width:100%; }
+textarea.in { min-height:64px; resize:vertical; }
+.in.mono { font-family:"Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace; }
+.seg { display:inline-flex; border:1px solid var(--ctl); border-radius:4px; overflow:hidden; background:var(--panel); flex-wrap:wrap; }
+.seg button { padding:6px 10px; font-size:12px; color:var(--muted); border:0; border-right:1px solid var(--line2); background:none; cursor:pointer; }
+.seg button:last-child { border-right:0; }
+.seg button.on { background:var(--ink); color:var(--bg); font-weight:600; }
+.chk { display:flex; align-items:center; gap:8px; cursor:pointer; }
+.chk input { width:15px; height:15px; accent-color:var(--acc); margin:0; }
+.hint { font-size:12px; color:var(--muted); }
+.warn { font-size:12px; color:var(--danger); }
+.row { display:flex; gap:14px; flex-wrap:wrap; }
+
+.toast { position:fixed; left:50%; bottom:18px; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:8px 14px; border-radius:4px; font-size:12px; opacity:0; transition:opacity .2s; pointer-events:none; }
+.toast.show { opacity:1; }
+@media (max-width: 1000px) { .side { display:none; } .drawer { width:340px; } }
+@media (prefers-reduced-motion: reduce) { .toast { transition:none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hdr">
+    <div style="display:flex; flex-direction:column; gap:2px;">
+      <div class="title">Quick commands</div>
+      <div class="sub" id="summary"></div>
+    </div>
+    <span class="grow"></span>
+    <span class="dirty" id="dirty"><i></i><span>No unsaved changes</span></span>
+    <button class="btn quiet" onclick="importJson()">Import JSON</button>
+    <button class="btn quiet" onclick="exportJson()">Export</button>
+    <button class="btn" onclick="addCommand(null)">New command</button>
+    <button class="btn primary" id="saveBtn" onclick="save()" disabled>Save changes</button>
+    <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importFileChosen(event)" />
+  </div>
+  <div class="main">
+    <div class="side" id="side"></div>
+    <div class="deck" id="deck"></div>
+    <div class="drawer hidden" id="drawer"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+var config = {{{configJson}}};
+var defaults = {{{defaultsJson}}};
+var state = { filter: null, selected: null, dirty: false, saving: false };
+var SHELL_LABEL = { cmd: 'CMD', ps: 'PS', sh: 'SH', agent: 'AGENT' };
+var SHELL_NAME = { cmd: 'Command Prompt (cmd)', ps: 'PowerShell', sh: 'Shell (Linux, macOS, BSD)', agent: 'Agent console' };
+
+// Night mode follows the MeshCentral window we are embedded in.
+try { if (window.parent && window.parent.document.body.classList.contains('night')) { document.body.classList.add('night'); } } catch (e) { }
+
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function uid() { return 'c' + Math.random().toString(36).substring(2, 10); }
+function byId(id) { for (var i = 0; i < config.commands.length; i++) { if (config.commands[i].id == id) return config.commands[i]; } return null; }
+function normalize() {
+  if (!Array.isArray(config.groups)) config.groups = [];
+  if (!Array.isArray(config.commands)) config.commands = [];
+  if (config.settings == null) config.settings = { terminalView: 'strip' };
+  config.commands.forEach(function (c) { if (c.group && config.groups.indexOf(c.group) == -1) config.groups.push(c.group); });
+}
+function markDirty() { state.dirty = true; renderDirty(); }
+function renderDirty() {
+  var d = document.getElementById('dirty'), b = document.getElementById('saveBtn');
+  d.className = 'dirty' + (state.dirty ? ' on' : '');
+  d.lastElementChild.textContent = state.dirty ? 'Unsaved changes' : 'No unsaved changes';
+  b.disabled = !state.dirty || state.saving;
+}
+function toast(msg) { var t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(function () { t.classList.remove('show'); }, 2200); }
+
+function groupsInOrder() {
+  var order = config.groups.slice();
+  var ungrouped = config.commands.some(function (c) { return !c.group; });
+  var out = order.map(function (g) { return { name: g, commands: config.commands.filter(function (c) { return c.group == g; }) }; });
+  if (ungrouped) out.push({ name: '', commands: config.commands.filter(function (c) { return !c.group; }) });
+  return out;
+}
+
+function render() { normalize(); renderSide(); renderDeck(); renderDrawer(); renderSummary(); renderDirty(); }
+
+function renderSummary() {
+  var t = config.commands.filter(function (c) { return c.showTerminal !== false; }).length;
+  var g = config.commands.filter(function (c) { return c.showGeneral === true; }).length;
+  document.getElementById('summary').textContent = config.commands.length + ' command' + (config.commands.length == 1 ? '' : 's') + ' · ' + t + ' on the Terminal tab · ' + g + ' on General';
+}
+
+function renderSide() {
+  var x = '<div class="h">Groups</div>';
+  x += '<button class="it' + (state.filter == null ? ' on' : '') + '" onclick="setFilter(null)"><span>All commands</span><span class="cnt">' + config.commands.length + '</span></button>';
+  groupsInOrder().forEach(function (g) {
+    x += '<button class="it' + (state.filter === g.name ? ' on' : '') + '" onclick="setFilter(' + JSON.stringify(g.name).replace(/"/g, '&quot;') + ')"><span>' + (g.name ? esc(g.name) : '<i>No group</i>') + '</span><span class="cnt">' + g.commands.length + '</span></button>';
+  });
+  x += '<button class="it add" onclick="addGroup()"><span>+ New group</span></button>';
+  x += '<div class="grow"></div><div class="h">Terminal tab</div>';
+  x += '<div class="setting"><label>Default view for everyone</label><div class="seg"><button class="' + (config.settings.terminalView != 'menu' ? 'on' : '') + '" onclick="setTermView(\'strip\')">Keypad strip</button><button class="' + (config.settings.terminalView == 'menu' ? 'on' : '') + '" onclick="setTermView(\'menu\')">Menu</button></div><span class="hint">Each person can still switch for themselves.</span></div>';
+  x += '<div class="h" style="margin-top:10px">Reset</div><button class="it" onclick="loadDefaults()"><span>Load example commands</span></button>';
+  document.getElementById('side').innerHTML = x;
+}
+
+function keyHtml(c) {
+  var cls = 'key' + (c.confirm ? ' danger' : '') + (c.mode == 'terminal' ? ' term' : '') + (state.selected == c.id ? ' sel' : '');
+  return '<button class="' + cls + '" draggable="true" data-id="' + esc(c.id) + '" onclick="select(\'' + esc(c.id) + '\')" ondragstart="dragStart(event)" ondragend="dragEnd(event)" title="' + esc(c.command) + '">'
+    + '<span class="n"><span class="tag ' + c.shell + '">' + SHELL_LABEL[c.shell] + '</span><span class="name">' + esc(c.name) + '</span><span class="where"><i class="' + (c.showTerminal !== false ? '' : 'off') + '" title="Terminal tab">T</i><i class="' + (c.showGeneral ? '' : 'off') + '" title="General tab">G</i></span></span>'
+    + '<span class="c">' + esc(c.command.split(/\r?\n/)[0]) + '</span></button>';
+}
+
+function renderDeck() {
+  var x = '';
+  var groups = groupsInOrder().filter(function (g) { return state.filter == null || g.name === state.filter; });
+  if (config.commands.length == 0) {
+    x += '<div class="empty"><b>No commands yet.</b><br>Add one with "New command", or start from the example set with "Load example commands" on the left. Every command becomes a key on the devices\' Terminal tab (and on General, if you want).</div>';
+  }
+  groups.forEach(function (g, gi) {
+    var gname = g.name;
+    var q = JSON.stringify(gname).replace(/"/g, '&quot;');
+    x += '<div class="grp"><div class="grpH"><b>' + (gname ? esc(gname) : '<i>No group</i>') + '</b><span class="sub">' + g.commands.length + '</span>';
+    if (gname) x += '<span class="tools"><button class="btn quiet" onclick="renameGroup(' + q + ')">Rename</button><button class="btn quiet" onclick="moveGroup(' + q + ',-1)">Up</button><button class="btn quiet" onclick="moveGroup(' + q + ',1)">Down</button><button class="btn quiet danger" onclick="deleteGroup(' + q + ')">Delete group</button></span>';
+    if (gi == 0 && config.commands.length > 0) x += '<span class="grow"></span><span class="sub">Drag keys to reorder or move them between groups. This order is what devices show.</span>';
+    x += '</div><div class="keys" data-group="' + esc(gname) + '" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">';
+    g.commands.forEach(function (c) { x += keyHtml(c); });
+    x += '<button class="key ghost" onclick="addCommand(' + q + ')">+ Add' + (gname ? ' to ' + esc(gname) : ' a command') + '</button></div></div>';
+  });
+  document.getElementById('deck').innerHTML = x;
+}
+
+function renderDrawer() {
+  var d = document.getElementById('drawer');
+  var c = state.selected ? byId(state.selected) : null;
+  if (c == null) { d.className = 'drawer hidden'; d.innerHTML = ''; return; }
+  d.className = 'drawer';
+  var seg = function (field, options) {
+    var h = '<div class="seg">';
+    options.forEach(function (o) { h += '<button class="' + (c[field] == o.v ? 'on' : '') + '" onclick="setField(\'' + field + '\',' + JSON.stringify(o.v).replace(/"/g, '&quot;') + ')">' + o.l + '</button>'; });
+    return h + '</div>';
+  };
+  var groupOpts = '<option value="">No group</option>';
+  config.groups.forEach(function (g) { groupOpts += '<option value="' + esc(g) + '"' + (c.group == g ? ' selected' : '') + '>' + esc(g) + '</option>'; });
+  var x = '<div class="drawerH"><span class="t">' + esc(c.name) + '</span><span class="grow"></span><button class="btn quiet" onclick="duplicateCommand()">Duplicate</button><button class="btn quiet danger" onclick="deleteCommand()">Delete</button><button class="btn quiet" title="Close" onclick="select(null)">✕</button></div>';
+  x += '<div class="field"><label for="fName">Name on the key</label><input class="in" id="fName" value="' + esc(c.name) + '" oninput="setField(\'name\', this.value, true)" maxlength="80" /></div>';
+  x += '<div class="field"><label>Shell</label>' + seg('shell', [{ v: 'cmd', l: 'CMD' }, { v: 'ps', l: 'PowerShell' }, { v: 'sh', l: 'Linux / macOS' }, { v: 'agent', l: 'Agent console' }]) + '<span class="hint">' + (c.shell == 'sh' ? 'Shown on non-Windows devices only.' : (c.shell == 'agent' ? 'Runs built-in agent commands (netinfo, ps, …). Shown on every device.' : 'Shown on Windows devices only.')) + '</span></div>';
+  x += '<div class="field"><label for="fCmd">Command</label><textarea class="in mono" id="fCmd" oninput="setField(\'command\', this.value, true)" spellcheck="false">' + esc(c.command) + '</textarea><span class="hint">' + (c.mode == 'terminal' ? 'Typed line by line, each followed by Enter.' : 'Several lines run one after another in one shell.') + '</span></div>';
+  x += '<div class="field"><label>How it runs</label>' + seg('mode', [{ v: 'run', l: 'Run, show output' }, { v: 'terminal', l: 'Type into terminal' }]) + '<span class="hint">' + (c.mode == 'terminal' ? 'Opens the Terminal tab, connects if needed, and types the command so you can answer prompts.' : 'Runs in the background; the output opens in a window when it is done.') + '</span></div>';
+  if (c.mode == 'run' && c.shell != 'agent') {
+    x += '<div class="field"><label>Run as</label>' + seg('runAs', [{ v: 0, l: 'Agent (SYSTEM/root)' }, { v: 1, l: 'User if signed in' }, { v: 2, l: 'User only' }]) + '</div>';
+  }
+  if (c.mode == 'terminal' && c.shell == 'agent') { x += '<div class="warn">Agent console commands cannot be typed into a terminal. Switch to "Run, show output".</div>'; }
+  x += '<div class="field"><label>Show on</label><div class="row"><label class="chk"><input type="checkbox" ' + (c.showTerminal !== false ? 'checked' : '') + ' onchange="setField(\'showTerminal\', this.checked)" /> Terminal tab</label><label class="chk"><input type="checkbox" ' + (c.showGeneral ? 'checked' : '') + ' onchange="setField(\'showGeneral\', this.checked)" /> General tab</label></div><span class="hint">The device\'s Plugins tab always lists every command.</span></div>';
+  x += '<label class="chk"><input type="checkbox" ' + (c.confirm ? 'checked' : '') + ' onchange="setField(\'confirm\', this.checked)" /> Ask before running</label>';
+  x += '<div class="field"><label for="fGroup">Group</label><select class="in" id="fGroup" onchange="setField(\'group\', this.value)">' + groupOpts + '</select></div>';
+  x += '<div class="field"><label for="fDesc">Hint (shown when hovering the key)</label><input class="in" id="fDesc" value="' + esc(c.description || '') + '" oninput="setField(\'description\', this.value, true)" maxlength="300" /></div>';
+  d.innerHTML = x;
+}
+
+// ---- actions ----
+function setFilter(g) { state.filter = g; render(); }
+function select(id) { state.selected = id; renderDeck(); renderDrawer(); if (id) { var f = document.getElementById('fName'); if (f && document.activeElement.tagName != 'INPUT' && document.activeElement.tagName != 'TEXTAREA') f.focus(); } }
+function setField(field, value, typing) {
+  var c = byId(state.selected); if (c == null) return;
+  c[field] = value; markDirty();
+  if (typing) { // keep focus, just refresh the deck key and title
+    renderDeck(); renderSummary();
+    var t = document.querySelector('.drawerH .t'); if (t && field == 'name') t.textContent = c.name;
+  } else { render(); }
+}
+function setTermView(v) { config.settings.terminalView = v; markDirty(); renderSide(); }
+function addCommand(group) {
+  if (group == null && state.filter) group = state.filter;
+  var c = { id: uid(), name: 'New command', group: group || '', shell: 'cmd', command: '', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: false, description: '' };
+  config.commands.push(c); state.selected = c.id; markDirty(); render();
+  var f = document.getElementById('fName'); if (f) { f.focus(); f.select(); }
+}
+function duplicateCommand() {
+  var c = byId(state.selected); if (c == null) return;
+  var n = JSON.parse(JSON.stringify(c)); n.id = uid(); n.name = c.name + ' (copy)';
+  config.commands.splice(config.commands.indexOf(c) + 1, 0, n); state.selected = n.id; markDirty(); render();
+}
+function deleteCommand() {
+  var c = byId(state.selected); if (c == null) return;
+  if (!confirm('Delete "' + c.name + '"?')) return;
+  config.commands.splice(config.commands.indexOf(c), 1); state.selected = null; markDirty(); render();
+}
+function addGroup() {
+  var name = prompt('Name of the new group'); if (!name) return; name = name.trim().substring(0, 64);
+  if (!name || config.groups.indexOf(name) >= 0) return;
+  config.groups.push(name); state.filter = name; markDirty(); render();
+}
+function renameGroup(g) {
+  var name = prompt('Rename group', g); if (!name) return; name = name.trim().substring(0, 64);
+  if (!name || name == g || config.groups.indexOf(name) >= 0) return;
+  config.groups[config.groups.indexOf(g)] = name;
+  config.commands.forEach(function (c) { if (c.group == g) c.group = name; });
+  if (state.filter == g) state.filter = name;
+  markDirty(); render();
+}
+function moveGroup(g, dir) {
+  var i = config.groups.indexOf(g), j = i + dir; if (i < 0 || j < 0 || j >= config.groups.length) return;
+  config.groups.splice(i, 1); config.groups.splice(j, 0, g); markDirty(); render();
+}
+function deleteGroup(g) {
+  var n = config.commands.filter(function (c) { return c.group == g; }).length;
+  if (!confirm('Delete group "' + g + '"?' + (n ? ' Its ' + n + ' command(s) are kept without a group.' : ''))) return;
+  config.groups.splice(config.groups.indexOf(g), 1);
+  config.commands.forEach(function (c) { if (c.group == g) c.group = ''; });
+  if (state.filter == g) state.filter = null;
+  markDirty(); render();
+}
+function loadDefaults() {
+  if (config.commands.length && !confirm('Replace the current ' + config.commands.length + ' command(s) with the example set? Nothing is saved until you click "Save changes".')) return;
+  config = JSON.parse(JSON.stringify(defaults)); state.selected = null; state.filter = null; markDirty(); render();
+}
+
+// ---- drag to reorder / regroup ----
+var dragId = null;
+function dragStart(e) { dragId = e.currentTarget.getAttribute('data-id'); e.currentTarget.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', dragId); } catch (ex) { } }
+function dragEnd(e) { e.currentTarget.classList.remove('dragging'); dragId = null; document.querySelectorAll('.keys.over').forEach(function (k) { k.classList.remove('over'); }); }
+function dragOver(e) { if (dragId == null) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('over'); }
+function dragLeave(e) { e.currentTarget.classList.remove('over'); }
+function drop(e) {
+  e.preventDefault(); if (dragId == null) return;
+  var container = e.currentTarget, group = container.getAttribute('data-group');
+  var moving = byId(dragId); if (moving == null) return;
+  // Find the key we dropped before (by x/y), if any.
+  var target = null;
+  var keys = container.querySelectorAll('.key[data-id]');
+  for (var i = 0; i < keys.length; i++) {
+    var r = keys[i].getBoundingClientRect();
+    if (keys[i].getAttribute('data-id') == dragId) continue;
+    if ((e.clientY < r.top + r.height) && (e.clientX < r.left + r.width / 2 || e.clientY < r.top)) { target = keys[i].getAttribute('data-id'); break; }
+  }
+  config.commands.splice(config.commands.indexOf(moving), 1);
+  moving.group = group;
+  if (target) { config.commands.splice(config.commands.indexOf(byId(target)), 0, moving); }
+  else { // append after the last command of this group
+    var last = -1; config.commands.forEach(function (c, i) { if (c.group == group) last = i; });
+    config.commands.splice(last + 1, 0, moving);
+  }
+  markDirty(); render();
+}
+
+// ---- save / import / export ----
+function save() {
+  if (state.saving) return;
+  state.saving = true; renderDirty();
+  var d = document.getElementById('dirty'); d.className = 'dirty on'; d.lastElementChild.textContent = 'Saving…';
+  fetch(window.location.pathname + '?pin=quickcommands', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'config=' + encodeURIComponent(JSON.stringify(config)) })
+    .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'Server answered ' + r.status }; }); })
+    .then(function (j) {
+      state.saving = false;
+      if (j.ok) { config = j.config; state.dirty = false; render(); d.className = 'dirty saved'; d.lastElementChild.textContent = 'Saved'; toast('Saved. Devices pick up the new keys right away.'); }
+      else { renderDirty(); d.className = 'dirty err'; d.lastElementChild.textContent = j.error || 'Could not save'; }
+    })
+    .catch(function (e) { state.saving = false; renderDirty(); d.className = 'dirty err'; d.lastElementChild.textContent = 'Could not save: ' + e.message; });
+}
+function exportJson() {
+  var blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'quickcommands.json'; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function importJson() { document.getElementById('importFile').click(); }
+function importFileChosen(e) {
+  var f = e.target.files[0]; if (!f) return;
+  var r = new FileReader();
+  r.onload = function () {
+    try {
+      var j = JSON.parse(r.result);
+      if (!Array.isArray(j.commands)) throw new Error('no "commands" list');
+      var mode = config.commands.length ? (confirm('Add the ' + j.commands.length + ' imported command(s) to the current ones?\n\nOK = add, Cancel = replace everything.') ? 'add' : 'replace') : 'replace';
+      if (mode == 'replace') { config = j; } else { j.commands.forEach(function (c) { c.id = uid(); config.commands.push(c); }); (j.groups || []).forEach(function (g) { if (config.groups.indexOf(g) == -1) config.groups.push(g); }); }
+      state.selected = null; markDirty(); render(); toast('Imported ' + j.commands.length + ' command(s). Save to keep them.');
+    } catch (ex) { alert('That file is not a Quick Commands export: ' + ex.message); }
+    e.target.value = '';
+  };
+  r.readAsText(f);
+}
+document.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() == 's') { e.preventDefault(); if (state.dirty) save(); } });
+window.addEventListener('beforeunload', function (e) { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+render();
+</script>
+</body>
+</html>
