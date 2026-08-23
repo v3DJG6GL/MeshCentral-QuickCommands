@@ -58,6 +58,7 @@ module.exports.quickcommands = function (parent) {
         'qcShowRunning',
         'qcCancelRun',
         'qcSendKill',
+        'qcSendInput',
         'qcFreeAgent',
         'qcButtonsHtml',
         'qcCopyOutput',
@@ -500,6 +501,8 @@ module.exports.quickcommands = function (parent) {
                 if (stat) { stat.innerHTML = error ? ('<span class="qcErr">' + Q.qcEsc(error) + '</span>') : ('<span class="qcOk">' + Q.qcFmtMs(e.ms) + '</span>'); }
                 var btns = document.getElementById('qcOutBtns');
                 if (btns) { btns.innerHTML = Q.qcButtonsHtml(e, st.log.indexOf(e)); }
+                var ir = document.getElementById('qcInRow');
+                if (ir) { ir.style.display = 'none'; }
                 return;
             }
         }
@@ -532,6 +535,28 @@ module.exports.quickcommands = function (parent) {
         e.timer = setTimeout(function () { pluginHandler.quickcommands.qcFinish(rid, 'Cancelled, but the agent did not confirm the kill (it needs agent console rights and a connected agent). The command may still be running and blocks further run commands until it ends or the agent restarts.'); }, 10000);
         var pre = document.getElementById('qcOutPre');
         if (pre && (pre.getAttribute('data-rid') == rid)) { var s2 = document.getElementById('qcOutStatus'); if (s2) s2.innerHTML = '<span class="qcMuted">cancelling…</span>'; }
+        return false;
+    };
+
+    // Send one line of input to the running command's stdin (same agent console
+    // channel as the kill). This is how a question a background command asks gets
+    // answered - mind that the question itself is often invisible here, because
+    // programs buffer their output when it goes to a pipe.
+    obj.qcSendInput = function (rid) {
+        var Q = pluginHandler.quickcommands, st = Q.qcState();
+        var e = st.pending[rid]; if (e == null) return false;
+        var box = document.getElementById('qcInText'); if (box == null) return false;
+        var t = box.value.replace(/[\r\n]/g, '');
+        // The text travels as a single-quoted literal inside the eval code; the
+        // console argument itself is double-quoted, so double quotes cannot pass.
+        var lit = t.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '');
+        var nl = ((typeof isWindowsNode == 'function') && currentNode && isWindowsNode(currentNode)) ? '\\r\\n' : '\\n';
+        var js = "(function(){var c=require('MeshAgent').cmdchild;if(c==null){return 'quickcommands: no running shell';}c.stdin.write('" + lit + nl + "');return 'quickcommands: input sent';})()";
+        meshserver.send({ action: 'msg', type: 'console', nodeid: currentNode._id, value: 'eval "' + js + '"' });
+        e.output += '> ' + t + '\n'; // echo locally so the sent answer is visible
+        box.value = '';
+        var pre = document.getElementById('qcOutPre');
+        if (pre && (pre.getAttribute('data-rid') == rid)) { pre.textContent = e.output; pre.scrollTop = pre.scrollHeight; }
         return false;
     };
 
@@ -568,9 +593,13 @@ module.exports.quickcommands = function (parent) {
         var runAs = ['as agent', 'as user if signed in', 'as user'][e.cmd.runAs | 0] || '';
         var body = (e.output && e.output.length) ? Q.qcEsc(e.output) : '<span class="qcMuted">(no output' + (e.state == 'running' ? ' yet' : (e.cmd.shell == 'agent' ? ' captured; see the Console tab' : '')) + ')</span>';
         var buttons = Q.qcButtonsHtml(e, idx);
+        var inputRow = ((e.state == 'running') && (e.cmd.shell != 'agent'))
+            ? '<div id="qcInRow" style="margin-top:8px;display:flex;gap:6px"><input type="text" id="qcInText" style="flex:1" placeholder="Send a line to the command (answer a question, e.g. j or n)" onkeydown="if(event.keyCode==13){event.preventDefault();pluginHandler.quickcommands.qcSendInput(\'' + Q.qcEsc(e.rid) + '\');return false;}" /><input type="button" value="Send" onclick="return pluginHandler.quickcommands.qcSendInput(\'' + Q.qcEsc(e.rid) + '\')" /></div>'
+            : '';
         var html = '<div class="qcOutH"><span class="qcTag ' + e.cmd.shell + '">' + Q.qcEsc(e.cmd.shell == 'ps' ? 'PS' : e.cmd.shell.toUpperCase()) + '</span><b>' + Q.qcEsc(e.cmd.name) + '</b><span>on ' + Q.qcEsc(currentNode ? currentNode.name : '') + '</span><span class="qcGrow"></span><span id="qcOutStatus">' + status + '</span></div>'
             + '<div class="qcOutH"><span class="qcC">' + Q.qcEsc(e.cmd.command.split(/\r?\n/)[0]) + '</span><span class="qcGrow"></span><span>' + runAs + '</span></div>'
             + '<pre class="qcOut" id="qcOutPre"' + (e.rid ? (' data-rid="' + Q.qcEsc(e.rid) + '"') : '') + '>' + body + '</pre>'
+            + inputRow
             + '<div style="margin-top:8px;text-align:right" id="qcOutBtns">' + buttons + '</div>';
         Q.qcDialog('Quick command', 1, null, html, true);
         return false;
@@ -636,7 +665,8 @@ module.exports.quickcommands = function (parent) {
                 { id: 'ipconfig', name: 'IP config', group: 'Network', shell: 'cmd', command: 'ipconfig /all', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: 'Full adapter, DNS and DHCP details.' },
                 { id: 'flushdns', name: 'Flush DNS', group: 'Network', shell: 'cmd', command: 'ipconfig /flushdns', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: false, description: '' },
                 { id: 'netinfo', name: 'Network info', group: 'Network', shell: 'agent', command: 'netinfo', mode: 'run', runAs: 0, showTerminal: false, showGeneral: true, confirm: false, description: 'Interfaces as the agent sees them.' },
-                { id: 'gpupdate', name: 'Group policy', group: 'Policy', shell: 'cmd', command: 'chcp 65001 >nul & echo n | gpupdate /force', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: 'Re-applies computer and user policy; gpupdate buffers, so the output appears when it finishes. The piped "n" answers a possible restart question with No so the run cannot get stuck; chcp 65001 keeps umlauts readable.' },
+                { id: 'gpupdate', name: 'Group policy', group: 'Policy', shell: 'cmd', command: 'gpupdate /force', mode: 'terminal', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: 'Interactive: runs in the terminal, so the output appears live and a possible restart question (J/N) can be answered.' },
+                { id: 'gpupdatebg', name: 'Group policy (silent)', group: 'Policy', shell: 'cmd', command: 'chcp 65001 >nul & echo n | gpupdate /force', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: false, description: 'Hands-off: gpupdate buffers on a pipe, so the output appears when it finishes. The piped "n" answers a possible restart question with No; chcp 65001 keeps umlauts readable.' },
                 { id: 'restart', name: 'Restart now', group: 'Power', shell: 'cmd', command: 'shutdown /r /f /t 0', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: true, description: 'Forces all programs to close and restarts immediately.' },
                 { id: 'linuxreboot', name: 'Reboot', group: 'Linux', shell: 'sh', command: 'systemctl reboot', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: true, description: '' },
                 { id: 'linuxdf', name: 'Disk usage', group: 'Linux', shell: 'sh', command: 'df -h', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: '' }

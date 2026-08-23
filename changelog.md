@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.4
+
+- Interactive background commands: the output window of a running command has
+  an **input line** now - what you type is written to the command's stdin on
+  the device, so a question like gpupdate's "restart? (J/N)" can be answered.
+  The question itself is often invisible while running (programs buffer their
+  output on a pipe), so for properly interactive commands *Type into terminal*
+  remains the first choice.
+- The example "Group policy" key runs in the terminal now, where gpupdate
+  shows its output live and the restart question can be answered; a new
+  example "Group policy (silent)" keeps the hands-off background variant.
+
 ## 0.1.3
 
 - Cancel now really cancels: it kills the running command on the device through
