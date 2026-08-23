@@ -462,6 +462,8 @@ module.exports.quickcommands = function (parent) {
             else { Q.qcFinish(message.responseid, (typeof r == 'string') ? r : 'Failed'); }
         } else if ((message.action == 'msg') && (message.type == 'console') && (typeof message.value == 'string')) {
             if ((currentNode == null) || (message.nodeid != currentNode._id)) return;
+            // Feedback from our own agent-console evals (kill, input) - not command output.
+            if (message.value.indexOf('"quickcommands:') == 0) return;
             // The agent runs one command at a time; a second one is rejected with this
             // console message and never gets a reply, so fail it right away.
             if (message.value.indexOf('Run commands can\'t execute, already busy') != -1) {
@@ -551,7 +553,11 @@ module.exports.quickcommands = function (parent) {
         // console argument itself is double-quoted, so double quotes cannot pass.
         var lit = t.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '');
         var nl = ((typeof isWindowsNode == 'function') && currentNode && isWindowsNode(currentNode)) ? '\\r\\n' : '\\n';
-        var js = "(function(){var c=require('MeshAgent').cmdchild;if(c==null){return 'quickcommands: no running shell';}c.stdin.write('" + lit + nl + "');return 'quickcommands: input sent';})()";
+        // The shell's own 'exit' line gets swallowed by the program that asks the
+        // question, so send a fresh one after the answer - the run then ends by
+        // itself as soon as the command finishes. If another question follows, the
+        // program eats this exit too and the next answer brings the next one.
+        var js = "(function(){var c=require('MeshAgent').cmdchild;if(c==null){return 'quickcommands: no running shell';}c.stdin.write('" + lit + nl + "exit" + nl + "');return 'quickcommands: input sent';})()";
         meshserver.send({ action: 'msg', type: 'console', nodeid: currentNode._id, value: 'eval "' + js + '"' });
         e.output += '> ' + t + '\n'; // echo locally so the sent answer is visible
         box.value = '';
@@ -594,7 +600,7 @@ module.exports.quickcommands = function (parent) {
         var body = (e.output && e.output.length) ? Q.qcEsc(e.output) : '<span class="qcMuted">(no output' + (e.state == 'running' ? ' yet' : (e.cmd.shell == 'agent' ? ' captured; see the Console tab' : '')) + ')</span>';
         var buttons = Q.qcButtonsHtml(e, idx);
         var inputRow = ((e.state == 'running') && (e.cmd.shell != 'agent'))
-            ? '<div id="qcInRow" style="margin-top:8px;display:flex;gap:6px"><input type="text" id="qcInText" style="flex:1" placeholder="Send a line to the command (answer a question, e.g. j or n)" onkeydown="if(event.keyCode==13){event.preventDefault();pluginHandler.quickcommands.qcSendInput(\'' + Q.qcEsc(e.rid) + '\');return false;}" /><input type="button" value="Send" onclick="return pluginHandler.quickcommands.qcSendInput(\'' + Q.qcEsc(e.rid) + '\')" /></div>'
+            ? '<div id="qcInRow" style="margin-top:8px;display:flex;gap:6px"><input type="text" id="qcInText" style="flex:1" placeholder="Answer the command\'s question (e.g. j or n) - also works before it appears" onkeydown="if(event.keyCode==13){event.preventDefault();pluginHandler.quickcommands.qcSendInput(\'' + Q.qcEsc(e.rid) + '\');return false;}" /><input type="button" value="Send" onclick="return pluginHandler.quickcommands.qcSendInput(\'' + Q.qcEsc(e.rid) + '\')" /></div>'
             : '';
         var html = '<div class="qcOutH"><span class="qcTag ' + e.cmd.shell + '">' + Q.qcEsc(e.cmd.shell == 'ps' ? 'PS' : e.cmd.shell.toUpperCase()) + '</span><b>' + Q.qcEsc(e.cmd.name) + '</b><span>on ' + Q.qcEsc(currentNode ? currentNode.name : '') + '</span><span class="qcGrow"></span><span id="qcOutStatus">' + status + '</span></div>'
             + '<div class="qcOutH"><span class="qcC">' + Q.qcEsc(e.cmd.command.split(/\r?\n/)[0]) + '</span><span class="qcGrow"></span><span>' + runAs + '</span></div>'

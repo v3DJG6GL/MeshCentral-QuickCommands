@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.5
+
+- Answering a question through the input line now finishes the run: the shell
+  gets a fresh `exit` after each answer, because the program that asked had
+  swallowed the original one - before this, the shell sat at a new prompt
+  forever after the command completed, still counting as running.
+- The answer can be typed ahead of time, while the command is still working:
+  questions are usually invisible in run mode (the program buffers its output
+  on a pipe and everything appears only when it exits), and a pre-typed answer
+  is consumed the moment the question comes.
+- Internal feedback lines ("quickcommands: input sent") no longer appear in
+  the output window.
+
 ## 0.1.4
 
 - Interactive background commands: the output window of a running command has
