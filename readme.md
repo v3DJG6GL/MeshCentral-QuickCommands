@@ -37,6 +37,11 @@ Keys can be flagged **Ask before running**: they get a red hazard stripe and a c
 
 Manual install: copy or clone this repository to `meshcentral-data/plugins/quickcommands` and list it under `settings.plugins.list` or enable it from the Plugins page.
 
+## Supported web UIs
+
+Works with both MeshCentral interfaces: the classic one and the modern (Bootstrap)
+one, selected per user or with `"sitestyle": 3` in the domain configuration.
+
 ## Permissions
 
 - Keys are shown to everyone who can see the device. Running them goes through MeshCentral's normal `runcommands` permission checks, so a user without *Remote Commands* rights gets *Access denied* instead of output.

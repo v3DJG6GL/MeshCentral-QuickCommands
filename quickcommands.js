@@ -44,7 +44,10 @@ module.exports.quickcommands = function (parent) {
         'qcCloseMenu',
         'qcSetTermView',
         'qcOpenManage',
+        'qcDialog',
+        'qcDialogClose',
         'qcRun',
+        'qcRunAgain',
         'qcRunNow',
         'qcExec',
         'qcTypeIntoTerminal',
@@ -78,11 +81,6 @@ module.exports.quickcommands = function (parent) {
             };
             st.hooked = true;
         }
-        // Put the dialog back to its normal size after a wide output window.
-        if ((typeof dialogclose == 'function') && (window._qcOrigDialogClose == null)) {
-            window._qcOrigDialogClose = dialogclose;
-            dialogclose = function (x) { var r = window._qcOrigDialogClose.apply(this, arguments); var d = document.getElementById('dialog'); if (d) { d.style.width = ''; d.style.left = ''; } return r; };
-        }
         document.addEventListener('click', function (e) {
             var st2 = pluginHandler.quickcommands.qcState();
             if (st2.menuOpen && !(e.target.closest && e.target.closest('#qcTermMenuWrap'))) { pluginHandler.quickcommands.qcCloseMenu(); }
@@ -92,7 +90,7 @@ module.exports.quickcommands = function (parent) {
     obj.onDeviceRefreshEnd = function (nodeid, panel, refresh, event) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         Q.qcInjectStyles();
-        pluginHandler.registerPluginTab({ tabId: 'pluginQuickCommands', tabTitle: 'Quick Commands' });
+        try { pluginHandler.registerPluginTab({ tabId: 'pluginQuickCommands', tabTitle: 'Quick Commands' }); } catch (e) { }
         if (st.nodeid != nodeid) { st.log = []; st.nodeid = nodeid; }
         if (st.config == null) { Q.qcRequestConfig(); } else { Q.qcRenderAll(); Q.qcRequestConfig(); }
     };
@@ -181,6 +179,7 @@ module.exports.quickcommands = function (parent) {
 .qcOutH { display:flex; gap:8px; align-items:center; font-size:12px; color:#5a6368; padding:0 0 6px; text-align:left; }
 .qcOutH .qcC { font-family:"Cascadia Mono", Consolas, monospace; }
 .qcEmpty { padding:14px 10px; font-size:12px; color:#5a6368; }
+#xxAddAgentModalConf.qcWide { max-width:760px; }
 `;
         var s = document.createElement('style'); s.id = 'qcStyles'; s.textContent = css; document.head.appendChild(s);
     };
@@ -371,6 +370,32 @@ module.exports.quickcommands = function (parent) {
     obj.qcClearLog = function () { var st = pluginHandler.quickcommands.qcState(); st.log = []; pluginHandler.quickcommands.qcRenderLog(); return false; };
     obj.qcFmtMs = function (ms) { if (ms == null) return ''; return (ms < 1000) ? (ms + ' ms') : ((ms / 1000).toFixed(1) + ' s'); };
 
+    // MeshCentral has two web UIs. The classic one (default.handlebars) shows a
+    // dialog as soon as setDialogMode() is called. The Bootstrap one
+    // (default3.handlebars) only prepares it there and needs showModal() as well
+    // - without it nothing appears and xxdialogMode stays set, which blocks every
+    // click in the interface. So always go through here.
+    obj.qcDialog = function (title, buttons, okFn, html, wide) {
+        var newUi = (typeof showModal === 'function');
+        setDialogMode(2, title, buttons, okFn, html);
+        if (newUi) {
+            var conf = document.getElementById('xxAddAgentModalConf');
+            if (conf) { if (wide) { conf.classList.add('qcWide'); } else { conf.classList.remove('qcWide'); } }
+            showModal('xxAddAgentModal', 'idx_dlgOkButton', okFn);
+        } else {
+            var dlg = document.getElementById('dialog'); // classic dialog is a fixed 400px
+            if (dlg && wide) { dlg.style.width = '680px'; dlg.style.left = 'calc(50% - 340px)'; }
+        }
+        return newUi;
+    };
+
+    obj.qcDialogClose = function () {
+        if ((typeof xxModal !== 'undefined') && (xxModal != null)) {
+            try { xxModal.hide(); } catch (e) { }
+            if (typeof xxdialogMode !== 'undefined') { xxdialogMode = 0; }
+        } else if (typeof dialogclose === 'function') { dialogclose(0); }
+    };
+
     // Entry point for every key.
     obj.qcRun = function (id, where) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
@@ -383,7 +408,7 @@ module.exports.quickcommands = function (parent) {
             var html = '<div class="qcOutH"><span class="qcTag ' + cmd.shell + '">' + Q.qcEsc(cmd.shell == 'ps' ? 'PS' : cmd.shell.toUpperCase()) + '</span><b>' + Q.qcEsc(cmd.name) + '</b><span>on ' + Q.qcEsc(currentNode.name) + '</span></div>'
                 + '<pre class="qcOut" style="max-height:120px">' + Q.qcEsc(cmd.command) + '</pre>'
                 + (cmd.description ? '<div class="qcMini" style="margin-top:6px">' + Q.qcEsc(cmd.description) + '</div>' : '');
-            setDialogMode(2, 'Run this command?', 3, function () { pluginHandler.quickcommands.qcRunNow(cmd); }, html);
+            Q.qcDialog('Run this command?', 3, function () { pluginHandler.quickcommands.qcRunNow(cmd); }, html);
             return false;
         }
         Q.qcRunNow(cmd);
@@ -398,7 +423,7 @@ module.exports.quickcommands = function (parent) {
     // Silent run through the agent's "runcommands"; the result comes back via qcIntercept.
     obj.qcExec = function (cmd) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
-        if ((currentNode == null) || (currentNode.conn & 1) == 0) { setDialogMode(2, 'Quick commands', 1, null, 'The agent is not connected, so "' + Q.qcEsc(cmd.name) + '" cannot run right now.'); return; }
+        if ((currentNode == null) || (currentNode.conn & 1) == 0) { Q.qcDialog('Quick commands', 1, null, 'The agent is not connected, so "' + Q.qcEsc(cmd.name) + '" cannot run right now.'); return; }
         var types = { cmd: 1, ps: 2, sh: 3, agent: 4 };
         var rid = 'qc-' + Math.random().toString(36).substring(2, 12);
         var entry = { cmd: cmd, state: 'running', time: new Date().toLocaleTimeString(), start: Date.now(), output: '', rid: rid };
@@ -450,9 +475,16 @@ module.exports.quickcommands = function (parent) {
         var html = '<div class="qcOutH"><span class="qcTag ' + e.cmd.shell + '">' + Q.qcEsc(e.cmd.shell == 'ps' ? 'PS' : e.cmd.shell.toUpperCase()) + '</span><b>' + Q.qcEsc(e.cmd.name) + '</b><span>on ' + Q.qcEsc(currentNode ? currentNode.name : '') + '</span><span class="qcGrow"></span>' + status + '</div>'
             + '<div class="qcOutH"><span class="qcC">' + Q.qcEsc(e.cmd.command.split(/\r?\n/)[0]) + '</span><span class="qcGrow"></span><span>' + runAs + '</span></div>'
             + '<pre class="qcOut" id="qcOutPre">' + body + '</pre>'
-            + '<div style="margin-top:8px;text-align:right"><input type="button" value="Copy" onclick="return pluginHandler.quickcommands.qcCopyOutput(' + idx + ')" />&nbsp;<input type="button" value="Run again" onclick="dialogclose(0);return pluginHandler.quickcommands.qcRun(\'' + Q.qcEsc(e.cmd.id) + '\',\'dialog\')" /></div>';
-        setDialogMode(2, 'Quick command', 1, null, html);
-        var dlg = document.getElementById('dialog'); if (dlg) { dlg.style.width = '680px'; dlg.style.left = 'calc(50% - 340px)'; }
+            + '<div style="margin-top:8px;text-align:right"><input type="button" value="Copy" onclick="return pluginHandler.quickcommands.qcCopyOutput(' + idx + ')" />&nbsp;<input type="button" value="Run again" onclick="return pluginHandler.quickcommands.qcRunAgain(\'' + Q.qcEsc(e.cmd.id) + '\')" /></div>';
+        Q.qcDialog('Quick command', 1, null, html, true);
+        return false;
+    };
+
+    obj.qcRunAgain = function (id) {
+        var Q = pluginHandler.quickcommands;
+        Q.qcDialogClose();
+        // The Bootstrap modal needs to finish hiding before a new one is shown.
+        setTimeout(function () { pluginHandler.quickcommands.qcRun(id, 'dialog'); }, 400);
         return false;
     };
 
@@ -466,7 +498,7 @@ module.exports.quickcommands = function (parent) {
     // Interactive run: switch to the Terminal tab, connect if needed, type the command.
     obj.qcTypeIntoTerminal = function (cmd) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
-        if ((currentNode == null) || (currentNode.conn & 1) == 0) { setDialogMode(2, 'Quick commands', 1, null, 'The agent is not connected, so the terminal cannot be opened.'); return; }
+        if ((currentNode == null) || (currentNode.conn & 1) == 0) { Q.qcDialog('Quick commands', 1, null, 'The agent is not connected, so the terminal cannot be opened.'); return; }
         if (xxcurrentView != 12) { go(12); }
         var entry = { cmd: cmd, state: 'typed', time: new Date().toLocaleTimeString(), start: Date.now(), output: '' };
         st.log.unshift(entry); if (st.log.length > 50) st.log.pop();
@@ -521,7 +553,7 @@ module.exports.quickcommands = function (parent) {
         var clean = { version: 1, settings: { terminalView: 'strip' }, groups: [], commands: [] };
         if ((input == null) || (typeof input != 'object')) return clean;
         if ((input.settings != null) && (input.settings.terminalView == 'menu')) clean.settings.terminalView = 'menu';
-        var str = function (v, max) { if (typeof v != 'string') return ''; v = v.replace(/[ --]/g, ''); return v.length > max ? v.substring(0, max) : v; };
+        var str = function (v, max) { if (typeof v != 'string') return ''; v = v.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, ''); return v.length > max ? v.substring(0, max) : v; };
         if (Array.isArray(input.groups)) { input.groups.forEach(function (g) { g = str(g, 64).trim(); if (g.length && (clean.groups.indexOf(g) == -1)) clean.groups.push(g); }); }
         var seen = {};
         if (Array.isArray(input.commands)) {

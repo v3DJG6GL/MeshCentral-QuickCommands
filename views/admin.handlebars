@@ -135,8 +135,14 @@ var state = { filter: null, selected: null, dirty: false, saving: false };
 var SHELL_LABEL = { cmd: 'CMD', ps: 'PS', sh: 'SH', agent: 'AGENT' };
 var SHELL_NAME = { cmd: 'Command Prompt (cmd)', ps: 'PowerShell', sh: 'Shell (Linux, macOS, BSD)', agent: 'Agent console' };
 
-// Night mode follows the MeshCentral window we are embedded in.
-try { if (window.parent && window.parent.document.body.classList.contains('night')) { document.body.classList.add('night'); } } catch (e) { }
+// Night mode follows the MeshCentral window we are embedded in; when the editor
+// is opened in its own tab that is not readable, so fall back to the OS setting.
+(function () {
+  var night = null;
+  try { if (window.parent && (window.parent !== window)) { night = window.parent.document.body.classList.contains('night'); } } catch (e) { night = null; }
+  if (night == null) { try { night = window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { night = false; } }
+  if (night) { document.body.classList.add('night'); }
+})();
 
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function uid() { return 'c' + Math.random().toString(36).substring(2, 10); }
