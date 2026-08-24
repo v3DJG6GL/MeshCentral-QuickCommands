@@ -34,7 +34,7 @@ button, input, select, textarea { font:inherit; color:inherit; }
 .btn.quiet { border-color:transparent; background:transparent; color:var(--muted); }
 .btn.quiet:hover { background:var(--key-hover); color:var(--ink); }
 .btn.danger { color:var(--danger); }
-.btn:focus-visible, .key:focus-visible, .in:focus-visible, .seg button:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+.btn:focus-visible, .key:focus-visible, .in:focus-visible, .seg button:focus-visible, .sw:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
 .dirty { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
 .dirty i { width:8px; height:8px; border-radius:50%; background:var(--faint); display:inline-block; }
 .dirty.on i { background:#D98E04; }
@@ -68,13 +68,25 @@ button, input, select, textarea { font:inherit; color:inherit; }
 .key .n { font-size:13px; line-height:16px; font-weight:600; display:flex; align-items:center; gap:6px; white-space:nowrap; overflow:hidden; }
 .key .n .name { overflow:hidden; text-overflow:ellipsis; }
 .key .c { font-family:"Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace; font-size:12px; line-height:14px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.key.term .n::after { content:"\203A_"; font-family:"Cascadia Mono", Consolas, monospace; font-size:10px; color:var(--faint); font-weight:normal; }
+.key.term .c { background:#0c1210; color:#c9d4ce; border-radius:3px; padding:2px 7px 2px 6px; margin:1px -2px 0; }
+.key.term .c::before { content:"> "; color:#4fc07e; font-weight:600; }
+.key.term .c::after { content:""; display:inline-block; width:6px; height:11px; margin-left:3px; vertical-align:-1px; background:#4fc07e; animation:qcBlink 1.1s steps(1) infinite; }
+body.night .key.term .c { background:#000; outline:1px solid #2a3330; }
+@keyframes qcBlink { 50% { opacity:0; } }
 .key.danger { border-color:var(--danger); padding-top:11px; }
 .key.danger::before { content:""; position:absolute; left:0; right:0; top:0; height:4px; background:repeating-linear-gradient(135deg,var(--danger) 0 6px,transparent 6px 10px); border-radius:3px 3px 0 0; }
 .key.ghost { border-style:dashed; border-bottom-width:1px; background:transparent; color:var(--muted); justify-content:center; align-items:center; min-width:120px; }
 .key.ghost:hover { color:var(--acc); border-color:var(--acc); }
 .tag { font-family:"Cascadia Mono", Consolas, monospace; font-size:9px; line-height:12px; font-weight:700; padding:0 4px; border-radius:2px; color:#fff; letter-spacing:0.4px; flex-shrink:0; }
 .tag.cmd { background:var(--cmd); } .tag.ps { background:var(--ps); } .tag.sh { background:var(--sh); } .tag.agent { background:var(--agent); }
+.tag.term { background:#B8741A; }
+.qcc-red { --qcc:#D2493D; } .qcc-orange { --qcc:#D97A1F; } .qcc-amber { --qcc:#C9A227; } .qcc-green { --qcc:#3AA06A; } .qcc-teal { --qcc:#2E9E9B; } .qcc-blue { --qcc:#3D7DD8; } .qcc-purple { --qcc:#8A63D2; } .qcc-pink { --qcc:#C75B9B; } .qcc-slate { --qcc:#6B7280; }
+.key[class*="qcc-"] { border-left:4px solid var(--qcc); }
+.gdot { width:9px; height:9px; border-radius:2px; display:inline-block; background:var(--qcc); flex-shrink:0; }
+.swrow { display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+.sw { width:18px; height:18px; border-radius:50%; border:0; padding:0; cursor:pointer; background:var(--qcc); }
+.sw.none { background:transparent; border:2px dashed var(--ctl); }
+.sw.sel { outline:2px solid var(--acc); outline-offset:2px; }
 .where { display:inline-flex; gap:3px; margin-left:auto; padding-left:8px; }
 .where i { font-style:normal; font-size:9px; font-weight:700; padding:1px 4px; border-radius:2px; background:var(--acc-soft); color:var(--acc); font-family:"Cascadia Mono", Consolas, monospace; }
 .where i.off { background:var(--line2); color:var(--faint); }
@@ -102,7 +114,7 @@ textarea.in { min-height:64px; resize:vertical; }
 .toast { position:fixed; left:50%; bottom:18px; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:8px 14px; border-radius:4px; font-size:12px; opacity:0; transition:opacity .2s; pointer-events:none; }
 .toast.show { opacity:1; }
 @media (max-width: 1000px) { .side { display:none; } .drawer { width:340px; } }
-@media (prefers-reduced-motion: reduce) { .toast { transition:none; } }
+@media (prefers-reduced-motion: reduce) { .toast { transition:none; } .key.term .c::after { animation:none; } }
 </style>
 </head>
 <body>
@@ -133,6 +145,7 @@ var config = {{{configJson}}};
 var defaults = {{{defaultsJson}}};
 var state = { filter: null, selected: null, dirty: false, saving: false };
 var SHELL_LABEL = { cmd: 'CMD', ps: 'PS', sh: 'SH', agent: 'AGENT' };
+var COLORS = ['red', 'orange', 'amber', 'green', 'teal', 'blue', 'purple', 'pink', 'slate'];
 var SHELL_NAME = { cmd: 'Command Prompt (cmd)', ps: 'PowerShell', sh: 'Shell (Linux, macOS, BSD)', agent: 'Agent console' };
 
 // Night mode follows the MeshCentral window we are embedded in; when the editor
@@ -151,8 +164,20 @@ function normalize() {
   if (!Array.isArray(config.groups)) config.groups = [];
   if (!Array.isArray(config.commands)) config.commands = [];
   if (config.settings == null) config.settings = { terminalView: 'strip' };
+  if ((config.groupColors == null) || (typeof config.groupColors != 'object')) config.groupColors = {};
   config.commands.forEach(function (c) { if (c.group && config.groups.indexOf(c.group) == -1) config.groups.push(c.group); });
 }
+// The command's own color wins over its group's color.
+function colorOf(c) { return c.color || config.groupColors[c.group] || ''; }
+// Row of palette dots; extraArg (already quoted/escaped for an attribute) is passed before the color.
+function swatches(current, fn, extraArg) {
+  var call = function (col) { return fn + '(' + (extraArg != null ? extraArg + ',' : '') + '\'' + col + '\')'; };
+  var h = '<span class="swrow"><button type="button" class="sw none' + (!current ? ' sel' : '') + '" title="No color" onclick="' + call('') + '"></button>';
+  COLORS.forEach(function (k) { h += '<button type="button" class="sw qcc-' + k + (current == k ? ' sel' : '') + '" title="' + k + '" onclick="' + call(k) + '"></button>'; });
+  return h + '</span>';
+}
+function setGroupColor(g, col) { if (col) { config.groupColors[g] = col; } else { delete config.groupColors[g]; } markDirty(); render(); }
+function setCommandColor(col) { setField('color', col); }
 function markDirty() { state.dirty = true; renderDirty(); }
 function renderDirty() {
   var d = document.getElementById('dirty'), b = document.getElementById('saveBtn');
@@ -182,7 +207,8 @@ function renderSide() {
   var x = '<div class="h">Groups</div>';
   x += '<button class="it' + (state.filter == null ? ' on' : '') + '" onclick="setFilter(null)"><span>All commands</span><span class="cnt">' + config.commands.length + '</span></button>';
   groupsInOrder().forEach(function (g) {
-    x += '<button class="it' + (state.filter === g.name ? ' on' : '') + '" onclick="setFilter(' + JSON.stringify(g.name).replace(/"/g, '&quot;') + ')"><span>' + (g.name ? esc(g.name) : '<i>No group</i>') + '</span><span class="cnt">' + g.commands.length + '</span></button>';
+    var sdot = (g.name && config.groupColors[g.name]) ? '<span class="gdot qcc-' + config.groupColors[g.name] + '" style="margin-right:6px"></span>' : '';
+    x += '<button class="it' + (state.filter === g.name ? ' on' : '') + '" onclick="setFilter(' + JSON.stringify(g.name).replace(/"/g, '&quot;') + ')"><span>' + sdot + (g.name ? esc(g.name) : '<i>No group</i>') + '</span><span class="cnt">' + g.commands.length + '</span></button>';
   });
   x += '<button class="it add" onclick="addGroup()"><span>+ New group</span></button>';
   x += '<div class="grow"></div><div class="h">Terminal tab</div>';
@@ -192,9 +218,10 @@ function renderSide() {
 }
 
 function keyHtml(c) {
-  var cls = 'key' + (c.confirm ? ' danger' : '') + (c.mode == 'terminal' ? ' term' : '') + (state.selected == c.id ? ' sel' : '');
+  var col = colorOf(c);
+  var cls = 'key' + (c.confirm ? ' danger' : '') + (c.mode == 'terminal' ? ' term' : '') + (state.selected == c.id ? ' sel' : '') + (col ? ' qcc-' + col : '');
   return '<button class="' + cls + '" draggable="true" data-id="' + esc(c.id) + '" onclick="select(\'' + esc(c.id) + '\')" ondragstart="dragStart(event)" ondragend="dragEnd(event)" title="' + esc(c.command) + '">'
-    + '<span class="n"><span class="tag ' + c.shell + '">' + SHELL_LABEL[c.shell] + '</span><span class="name">' + esc(c.name) + '</span><span class="where"><i class="' + (c.showTerminal !== false ? '' : 'off') + '" title="Terminal tab">T</i><i class="' + (c.showGeneral ? '' : 'off') + '" title="General tab">G</i></span></span>'
+    + '<span class="n"><span class="tag ' + c.shell + '">' + SHELL_LABEL[c.shell] + '</span>' + (c.mode == 'terminal' ? '<span class="tag term" title="Typed into the terminal">&gt;_</span>' : '') + '<span class="name">' + esc(c.name) + '</span><span class="where"><i class="' + (c.showTerminal !== false ? '' : 'off') + '" title="Terminal tab">T</i><i class="' + (c.showGeneral ? '' : 'off') + '" title="General tab">G</i></span></span>'
     + '<span class="c">' + esc(c.command.split(/\r?\n/)[0]) + '</span></button>';
 }
 
@@ -207,8 +234,9 @@ function renderDeck() {
   groups.forEach(function (g, gi) {
     var gname = g.name;
     var q = JSON.stringify(gname).replace(/"/g, '&quot;');
-    x += '<div class="grp"><div class="grpH"><b>' + (gname ? esc(gname) : '<i>No group</i>') + '</b><span class="sub">' + g.commands.length + '</span>';
-    if (gname) x += '<span class="tools"><button class="btn quiet" onclick="renameGroup(' + q + ')">Rename</button><button class="btn quiet" onclick="moveGroup(' + q + ',-1)">Up</button><button class="btn quiet" onclick="moveGroup(' + q + ',1)">Down</button><button class="btn quiet danger" onclick="deleteGroup(' + q + ')">Delete group</button></span>';
+    var gcol = gname ? (config.groupColors[gname] || '') : '';
+    x += '<div class="grp"><div class="grpH">' + (gcol ? '<span class="gdot qcc-' + gcol + '"></span>' : '') + '<b>' + (gname ? esc(gname) : '<i>No group</i>') + '</b><span class="sub">' + g.commands.length + '</span>';
+    if (gname) x += '<span class="tools">' + swatches(gcol, 'setGroupColor', q) + '<button class="btn quiet" onclick="renameGroup(' + q + ')">Rename</button><button class="btn quiet" onclick="moveGroup(' + q + ',-1)">Up</button><button class="btn quiet" onclick="moveGroup(' + q + ',1)">Down</button><button class="btn quiet danger" onclick="deleteGroup(' + q + ')">Delete group</button></span>';
     if (gi == 0 && config.commands.length > 0) x += '<span class="grow"></span><span class="sub">Drag keys to reorder or move them between groups. This order is what devices show.</span>';
     x += '</div><div class="keys" data-group="' + esc(gname) + '" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">';
     g.commands.forEach(function (c) { x += keyHtml(c); });
@@ -241,6 +269,7 @@ function renderDrawer() {
   x += '<div class="field"><label>Show on</label><div class="row"><label class="chk"><input type="checkbox" ' + (c.showTerminal !== false ? 'checked' : '') + ' onchange="setField(\'showTerminal\', this.checked)" /> Terminal tab</label><label class="chk"><input type="checkbox" ' + (c.showGeneral ? 'checked' : '') + ' onchange="setField(\'showGeneral\', this.checked)" /> General tab</label></div><span class="hint">The device\'s Plugins tab always lists every command.</span></div>';
   x += '<label class="chk"><input type="checkbox" ' + (c.confirm ? 'checked' : '') + ' onchange="setField(\'confirm\', this.checked)" /> Ask before running</label>';
   x += '<div class="field"><label for="fGroup">Group</label><select class="in" id="fGroup" onchange="setField(\'group\', this.value)">' + groupOpts + '</select></div>';
+  x += '<div class="field"><label>Color of the key</label>' + swatches(c.color || '', 'setCommandColor', null) + '<span class="hint">' + (c.color ? 'Shown as a colored edge on the key.' : (config.groupColors[c.group] ? 'Without its own color, the key uses the group’s color (' + esc(config.groupColors[c.group]) + ').' : 'Shown as a colored edge on the key. Whole groups can be colored on their heading.')) + '</span></div>';
   x += '<div class="field"><label for="fDesc">Hint (shown when hovering the key)</label><input class="in" id="fDesc" value="' + esc(c.description || '') + '" oninput="setField(\'description\', this.value, true)" maxlength="300" /></div>';
   d.innerHTML = x;
 }
@@ -259,7 +288,7 @@ function setField(field, value, typing) {
 function setTermView(v) { config.settings.terminalView = v; markDirty(); renderSide(); }
 function addCommand(group) {
   if (group == null && state.filter) group = state.filter;
-  var c = { id: uid(), name: 'New command', group: group || '', shell: 'cmd', command: '', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: false, description: '' };
+  var c = { id: uid(), name: 'New command', group: group || '', shell: 'cmd', command: '', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: false, color: '', description: '' };
   config.commands.push(c); state.selected = c.id; markDirty(); render();
   var f = document.getElementById('fName'); if (f) { f.focus(); f.select(); }
 }
@@ -282,6 +311,7 @@ function renameGroup(g) {
   var name = prompt('Rename group', g); if (!name) return; name = name.trim().substring(0, 64);
   if (!name || name == g || config.groups.indexOf(name) >= 0) return;
   config.groups[config.groups.indexOf(g)] = name;
+  if (config.groupColors[g] != null) { config.groupColors[name] = config.groupColors[g]; delete config.groupColors[g]; }
   config.commands.forEach(function (c) { if (c.group == g) c.group = name; });
   if (state.filter == g) state.filter = name;
   markDirty(); render();
@@ -294,6 +324,7 @@ function deleteGroup(g) {
   var n = config.commands.filter(function (c) { return c.group == g; }).length;
   if (!confirm('Delete group "' + g + '"?' + (n ? ' Its ' + n + ' command(s) are kept without a group.' : ''))) return;
   config.groups.splice(config.groups.indexOf(g), 1);
+  delete config.groupColors[g];
   config.commands.forEach(function (c) { if (c.group == g) c.group = ''; });
   if (state.filter == g) state.filter = null;
   markDirty(); render();
@@ -358,7 +389,7 @@ function importFileChosen(e) {
       var j = JSON.parse(r.result);
       if (!Array.isArray(j.commands)) throw new Error('no "commands" list');
       var mode = config.commands.length ? (confirm('Add the ' + j.commands.length + ' imported command(s) to the current ones?\n\nOK = add, Cancel = replace everything.') ? 'add' : 'replace') : 'replace';
-      if (mode == 'replace') { config = j; } else { j.commands.forEach(function (c) { c.id = uid(); config.commands.push(c); }); (j.groups || []).forEach(function (g) { if (config.groups.indexOf(g) == -1) config.groups.push(g); }); }
+      if (mode == 'replace') { config = j; } else { j.commands.forEach(function (c) { c.id = uid(); config.commands.push(c); }); (j.groups || []).forEach(function (g) { if (config.groups.indexOf(g) == -1) config.groups.push(g); }); if (j.groupColors) { for (var gk in j.groupColors) { if (config.groupColors[gk] == null) config.groupColors[gk] = j.groupColors[gk]; } } }
       state.selected = null; markDirty(); render(); toast('Imported ' + j.commands.length + ' command(s). Save to keep them.');
     } catch (ex) { alert('That file is not a Quick Commands export: ' + ex.message); }
     e.target.value = '';

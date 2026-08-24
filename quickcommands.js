@@ -33,6 +33,8 @@ module.exports.quickcommands = function (parent) {
         'qcApplicable',
         'qcVisible',
         'qcEsc',
+        'qcColorOf',
+        'qcTagsHtml',
         'qcKeyHtml',
         'qcGroupsFor',
         'qcRenderAll',
@@ -140,9 +142,16 @@ module.exports.quickcommands = function (parent) {
 .night .qcKey .qcC { color:#8b9591; }
 .qcTag { font-family:"Cascadia Mono", Consolas, monospace; font-size:9px; line-height:12px; font-weight:bold; padding:0 4px; border-radius:2px; color:#fff; letter-spacing:0.4px; }
 .qcTag.cmd { background:#3C5A78; } .qcTag.ps { background:#1E6BD6; } .qcTag.sh { background:#2C8C5A; } .qcTag.agent { background:#7A52C4; }
+.qcTag.term { background:#B8741A; }
 .qcKey.danger { border-color:#C8362B; padding-top:6px; }
 .qcKey.danger::before { content:""; position:absolute; left:0; right:0; top:0; height:4px; background:repeating-linear-gradient(135deg,#C8362B 0 6px,transparent 6px 10px); }
-.qcKey.termMode .qcN::after { content:"\\203A_"; font-family:"Cascadia Mono", Consolas, monospace; font-size:10px; color:#7c868b; font-weight:normal; }
+.qcKey.termMode .qcC, .qcMenuI.termMode .qcC { background:#0c1210; color:#c9d4ce; border-radius:3px; padding:1px 6px 1px 5px; }
+.qcKey.termMode .qcC { margin:1px -2px 0; }
+.qcKey.termMode .qcC::before, .qcMenuI.termMode .qcC::before { content:"> "; color:#4fc07e; font-weight:bold; }
+.qcKey.termMode .qcC::after, .qcMenuI.termMode .qcC::after { content:""; display:inline-block; width:6px; height:10px; margin-left:3px; vertical-align:-1px; background:#4fc07e; animation:qcBlink 1.1s steps(1) infinite; }
+.night .qcKey.termMode .qcC, .night .qcMenuI.termMode .qcC { background:#000; outline:1px solid #2a3330; }
+@keyframes qcBlink { 50% { opacity:0; } }
+@media (prefers-reduced-motion: reduce) { .qcKey.termMode .qcC::after, .qcMenuI.termMode .qcC::after { animation:none; } }
 .qcKey.busy { background:#fff7dc; border-color:#b88a00; cursor:progress; }
 .night .qcKey.busy { background:#2a2410; }
 .qcKey:disabled { opacity:0.55; cursor:default; }
@@ -155,8 +164,8 @@ module.exports.quickcommands = function (parent) {
 .qcMenuI:hover { background:#f4f8f7; } .night .qcMenuI:hover { background:#1d2422; }
 .qcMenuI .qcN { font-weight:bold; display:flex; align-items:center; gap:5px; }
 .qcMenuI .qcC { font-family:"Cascadia Mono", Consolas, monospace; color:#5a6368; white-space:nowrap; max-width:200px; overflow:hidden; text-overflow:ellipsis; }
-.qcMenuI.danger .qcN, .qcMenuI.danger .qcC { color:#C8362B; }
-.qcMenuI.termMode .qcN::after { content:"\\203A_"; font-family:"Cascadia Mono", Consolas, monospace; font-size:10px; color:#7c868b; font-weight:normal; }
+.qcMenuI.danger .qcN { color:#C8362B; }
+.qcMenuI.danger:not(.termMode) .qcC { color:#C8362B; }
 .qcMenuF { padding:6px 10px; border-top:1px solid #d8dedc; display:flex; gap:12px; font-size:11px; }
 .night .qcMenuF { border-top-color:#333; }
 .qcPanel { margin:10px 0 14px; border:1px solid #AAA; background:#EEE; }
@@ -186,7 +195,16 @@ module.exports.quickcommands = function (parent) {
 .qcOutH .qcC { font-family:"Cascadia Mono", Consolas, monospace; }
 .qcEmpty { padding:14px 10px; font-size:12px; color:#5a6368; }
 #xxAddAgentModalConf.qcWide { max-width:760px; }
+.qcKey[class*="qcc-"] { border-left:4px solid var(--qcc); }
+.qcMenuI[class*="qcc-"] { box-shadow:inset 3px 0 0 var(--qcc); }
+.qcGL { font-size:10px; text-transform:uppercase; letter-spacing:0.6px; font-weight:bold; white-space:nowrap; display:inline-flex; align-items:center; gap:4px; color:var(--qccl); }
+.night .qcGL { color:var(--qccn); }
+.qcGL::before { content:""; width:7px; height:7px; border-radius:2px; background:var(--qcc); }
+.qcDot { display:inline-block; width:7px; height:7px; border-radius:2px; margin-right:5px; background:var(--qcc); }
 `;
+        // Fixed palette; each entry is [key stripe, group label on light, group label on night].
+        var pal = { red: ['#D2493D', '#B03A30', '#E06459'], orange: ['#D97A1F', '#A85E14', '#E89A4C'], amber: ['#C9A227', '#8F7418', '#D9B84A'], green: ['#3AA06A', '#2C7A50', '#5CB88A'], teal: ['#2E9E9B', '#23807D', '#4FB8B5'], blue: ['#3D7DD8', '#2D62B0', '#5B94E4'], purple: ['#8A63D2', '#6F4DB0', '#A585E0'], pink: ['#C75B9B', '#A34579', '#D67FB2'], slate: ['#6B7280', '#4E5560', '#98A3AD'] };
+        for (var k in pal) { css += '.qcc-' + k + ' { --qcc:' + pal[k][0] + '; --qccl:' + pal[k][1] + '; --qccn:' + pal[k][2] + '; }\n'; }
         var s = document.createElement('style'); s.id = 'qcStyles'; s.textContent = css; document.head.appendChild(s);
     };
 
@@ -223,15 +241,30 @@ module.exports.quickcommands = function (parent) {
         return out;
     };
 
+    // Effective key color: the command's own color wins over its group's color.
+    obj.qcColorOf = function (c) {
+        var st = pluginHandler.quickcommands.qcState();
+        var col = c.color || ((st.config && st.config.groupColors) ? st.config.groupColors[c.group] : '') || '';
+        return /^[a-z]+$/.test(col) ? col : '';
+    };
+
+    // The CMD/PS/SH/AGENT tag, plus the amber >_ tag on commands typed into the terminal.
+    obj.qcTagsHtml = function (c) {
+        var Q = pluginHandler.quickcommands;
+        return '<span class="qcTag ' + c.shell + '">' + Q.qcEsc(c.shell == 'ps' ? 'PS' : c.shell.toUpperCase()) + '</span>'
+            + (c.mode == 'terminal' ? '<span class="qcTag term" title="Typed into the terminal">&gt;_</span>' : '');
+    };
+
     obj.qcKeyHtml = function (c, where) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         var busy = false; for (var k in st.pending) { if (st.pending[k].cmd.id == c.id) busy = true; }
-        var cls = 'qcKey' + (c.confirm ? ' danger' : '') + (c.mode == 'terminal' ? ' termMode' : '') + (busy ? ' busy' : '');
+        var col = Q.qcColorOf(c);
+        var cls = 'qcKey' + (c.confirm ? ' danger' : '') + (c.mode == 'terminal' ? ' termMode' : '') + (busy ? ' busy' : '') + (col ? ' qcc-' + col : '');
         var sub = busy ? ('Running… (view / cancel)') : c.command.split(/\r?\n/)[0];
         var title = (c.description ? c.description + '\n' : '') + c.command + (c.mode == 'terminal' ? '\n(typed into the terminal)' : '');
         var click = busy ? ('qcShowRunning(\'' + Q.qcEsc(c.id) + '\')') : ('qcRun(\'' + Q.qcEsc(c.id) + '\',\'' + where + '\')');
         return '<button type="button" class="' + cls + '" title="' + Q.qcEsc(title) + '" onclick="return pluginHandler.quickcommands.' + click + '">'
-            + '<span class="qcN"><span class="qcTag ' + c.shell + '">' + Q.qcEsc(c.shell == 'ps' ? 'PS' : c.shell.toUpperCase()) + '</span>' + Q.qcEsc(c.name) + '</span>'
+            + '<span class="qcN">' + Q.qcTagsHtml(c) + Q.qcEsc(c.name) + '</span>'
             + '<span class="qcC">' + Q.qcEsc(sub) + '</span></button>';
     };
 
@@ -266,10 +299,12 @@ module.exports.quickcommands = function (parent) {
             var x = '<input type="button" value="Quick commands ▾" onclick="return pluginHandler.quickcommands.qcToggleMenu(event)" onkeypress="return false" onkeydown="return false" />';
             x += '<div class="qcMenu" id="qcTermMenu" style="display:' + (st.menuOpen ? '' : 'none') + '">';
             groups.forEach(function (g) {
-                if (g.name) x += '<div class="qcMenuH">' + Q.qcEsc(g.name) + '</div>';
+                var gcol = (g.name && st.config.groupColors) ? st.config.groupColors[g.name] : null;
+                if (g.name) x += '<div class="qcMenuH">' + (gcol ? '<span class="qcDot qcc-' + gcol + '"></span>' : '') + Q.qcEsc(g.name) + '</div>';
                 g.commands.forEach(function (c) {
-                    x += '<button type="button" class="qcMenuI' + (c.confirm ? ' danger' : '') + (c.mode == 'terminal' ? ' termMode' : '') + '" title="' + Q.qcEsc(c.description || '') + '" onclick="return pluginHandler.quickcommands.qcRun(\'' + Q.qcEsc(c.id) + '\',\'terminal\')">'
-                        + '<span class="qcN"><span class="qcTag ' + c.shell + '">' + Q.qcEsc(c.shell == 'ps' ? 'PS' : c.shell.toUpperCase()) + '</span>' + Q.qcEsc(c.name) + '</span><span class="qcC">' + Q.qcEsc(c.command.split(/\r?\n/)[0]) + '</span></button>';
+                    var col = Q.qcColorOf(c);
+                    x += '<button type="button" class="qcMenuI' + (c.confirm ? ' danger' : '') + (c.mode == 'terminal' ? ' termMode' : '') + (col ? ' qcc-' + col : '') + '" title="' + Q.qcEsc(c.description || '') + '" onclick="return pluginHandler.quickcommands.qcRun(\'' + Q.qcEsc(c.id) + '\',\'terminal\')">'
+                        + '<span class="qcN">' + Q.qcTagsHtml(c) + Q.qcEsc(c.name) + '</span><span class="qcC">' + Q.qcEsc(c.command.split(/\r?\n/)[0]) + '</span></button>';
                 });
             });
             x += '<div class="qcMenuF"><span class="qcLink" onclick="return pluginHandler.quickcommands.qcSetTermView(\'strip\')">Show as strip</span>' + manage + '</div></div>';
@@ -284,7 +319,9 @@ module.exports.quickcommands = function (parent) {
             }
             var x = '<td><div class="qcStrip"><span class="qcLabel">Quick commands</span>';
             groups.forEach(function (g) {
+                var gcol = (g.name && st.config.groupColors) ? st.config.groupColors[g.name] : null;
                 x += '<div class="qcGroup" title="' + Q.qcEsc(g.name) + '">';
+                if (gcol) x += '<span class="qcGL qcc-' + gcol + '">' + Q.qcEsc(g.name) + '</span>';
                 g.commands.forEach(function (c) { x += Q.qcKeyHtml(c, 'terminal'); });
                 x += '</div>';
             });
@@ -345,13 +382,14 @@ module.exports.quickcommands = function (parent) {
             x += '<div class="qcEmpty">No commands for this device yet.' + (st.canManage ? ' <span class="qcLink" onclick="return pluginHandler.quickcommands.qcOpenManage()">Add some…</span>' : ' Ask an administrator to add some under My Server &gt; Plugins.') + '</div>';
         } else {
             Q.qcGroupsFor(cmds).forEach(function (g) {
-                if (g.name) x += '<div class="qcGH">' + Q.qcEsc(g.name) + '</div>';
+                var gcol = (g.name && st.config.groupColors) ? st.config.groupColors[g.name] : null;
+                if (g.name) x += '<div class="qcGH">' + (gcol ? '<span class="qcDot qcc-' + gcol + '"></span>' : '') + Q.qcEsc(g.name) + '</div>';
                 x += '<div class="qcWrap">';
                 g.commands.forEach(function (c) { x += Q.qcKeyHtml(c, 'tab'); });
                 x += '</div>';
             });
         }
-        x += '<div class="qcMini">›_ is typed into the Terminal tab instead of running silently.' + (st.canManage ? ' <span class="qcLink" onclick="return pluginHandler.quickcommands.qcOpenManage()">Manage commands…</span>' : '') + '</div>';
+        x += '<div class="qcMini"><span class="qcTag term">&gt;_</span> is typed into the Terminal tab instead of running silently.' + (st.canManage ? ' <span class="qcLink" onclick="return pluginHandler.quickcommands.qcOpenManage()">Manage commands…</span>' : '') + '</div>';
         x += '</div><div class="qcLog" id="qcLog"></div></div>';
         host.innerHTML = x;
         Q.qcRenderLog();
@@ -661,12 +699,14 @@ module.exports.quickcommands = function (parent) {
     //  Server side
     // ------------------------------------------------------------------
     var SHELLS = ['cmd', 'ps', 'sh', 'agent'], MODES = ['run', 'terminal'];
+    var COLORS = ['red', 'orange', 'amber', 'green', 'teal', 'blue', 'purple', 'pink', 'slate'];
 
     obj.defaultConfig = function () {
         return {
             version: 1,
             settings: { terminalView: 'strip' },
             groups: ['Network', 'Policy', 'Power', 'Linux'],
+            groupColors: { 'Network': 'blue', 'Power': 'red' },
             commands: [
                 { id: 'ipconfig', name: 'IP config', group: 'Network', shell: 'cmd', command: 'ipconfig /all', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: 'Full adapter, DNS and DHCP details.' },
                 { id: 'flushdns', name: 'Flush DNS', group: 'Network', shell: 'cmd', command: 'ipconfig /flushdns', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: false, description: '' },
@@ -682,7 +722,7 @@ module.exports.quickcommands = function (parent) {
 
     // Validates and normalises a configuration object coming from the admin page or an import.
     obj.sanitize = function (input) {
-        var clean = { version: 1, settings: { terminalView: 'strip' }, groups: [], commands: [] };
+        var clean = { version: 1, settings: { terminalView: 'strip' }, groups: [], groupColors: {}, commands: [] };
         if ((input == null) || (typeof input != 'object')) return clean;
         if ((input.settings != null) && (input.settings.terminalView == 'menu')) clean.settings.terminalView = 'menu';
         var str = function (v, max) { if (typeof v != 'string') return ''; v = v.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, ''); return v.length > max ? v.substring(0, max) : v; };
@@ -708,9 +748,13 @@ module.exports.quickcommands = function (parent) {
                     showTerminal: (c.showTerminal !== false),
                     showGeneral: (c.showGeneral === true),
                     confirm: (c.confirm === true),
+                    color: (COLORS.indexOf(c.color) >= 0) ? c.color : '',
                     description: str(c.description, 300).trim()
                 });
             });
+        }
+        if ((input.groupColors != null) && (typeof input.groupColors == 'object')) {
+            clean.groups.forEach(function (g) { if (COLORS.indexOf(input.groupColors[g]) >= 0) clean.groupColors[g] = input.groupColors[g]; });
         }
         if (clean.commands.length > 500) clean.commands = clean.commands.slice(0, 500);
         return clean;

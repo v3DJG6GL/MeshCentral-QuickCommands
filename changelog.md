@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.6
+
+- Terminal-mode keys are finally recognisable in dark mode: instead of the
+  faint `›_` glyph, they carry an amber `>_` badge next to the shell tag, and
+  the command preview renders as a miniature terminal line - dark inset, green
+  prompt, blinking cursor (still under `prefers-reduced-motion`). Applies to
+  the strip, the menu, the admin editor and the Plugins-tab legend.
+- Commands and groups can be colored from a fixed nine-color palette (picked
+  in the admin editor - a swatch row on the command drawer and on each group
+  heading). The color shows as a 4px edge on the key, an inset stripe on menu
+  items and a colored label/dot on group headings, tuned for both themes. A
+  command's own color overrides its group's color; group colors survive
+  renames and are dropped with the group. Existing configurations look
+  unchanged until a color is picked; the example set colors Network blue and
+  Power red.
+
 ## 0.1.5
 
 - Answering a question through the input line now finishes the run: the shell

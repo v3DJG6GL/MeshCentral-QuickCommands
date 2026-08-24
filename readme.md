@@ -18,9 +18,11 @@ Every key shows its **name and the literal command**, a badge for the shell (`CM
 Two ways a key can run:
 
 - **Run, show output** — runs in the background through the agent (like MeshCentral's *Run Commands*), as the agent or as the signed-in user. The output streams live into a window while the command runs, can be cancelled there, and is kept in the run log.
-- **Type into terminal** — opens the Terminal tab, connects if needed, and types the command followed by Enter. Use this for anything interactive (`netsh`, `diskpart`, prompts that ask *Y/N*). Keys of this kind are marked `›_`.
+- **Type into terminal** — opens the Terminal tab, connects if needed, and types the command followed by Enter. Use this for anything interactive (`netsh`, `diskpart`, prompts that ask *Y/N*). Keys of this kind carry an amber `>_` badge and show their command as a miniature terminal line with a blinking cursor.
 
 Keys can be flagged **Ask before running**: they get a red hazard stripe and a confirmation that shows the exact command.
+
+Keys and whole groups can be given a **color** from a fixed palette — shown as a colored edge on the key and a colored group label, in both the light and dark theme. A command's own color wins over its group's color.
 
 ## Install
 
