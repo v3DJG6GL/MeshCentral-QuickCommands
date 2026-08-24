@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.2.0
+
+- Quick commands come to the My Devices page, in two ways:
+  - **Selection:** a keycap-styled **⚡ Quick Commands** button next to *Group
+    Action* (and a *⚡ Run quick command* operation inside the Group Action
+    dialog itself). Both open a picker that shows every command as a key,
+    annotated with how many of the selected devices it applies to ("runs on
+    3 of 4"); devices that are offline, without an agent or without the
+    run-commands right are counted and skipped. Running opens a results
+    window with one live row per device - status, duration, *View output*
+    (with live streaming, the answer box and *Free the agent*, as on the
+    device page) and *Cancel*.
+  - **Right-click:** a **⚡ Quick Commands** entry in the device context
+    menu with a flyout listing the commands that fit that device's OS,
+    grouped and colored as everywhere else. One click runs the command;
+    *Ask before running* keys still confirm first, and terminal-mode keys
+    open the device's Terminal tab and type there. *All commands…* (and
+    any list longer than 20) falls back to the picker dialog. The entry
+    only appears on connected agents you may run commands on.
+- The run pipeline is now routed per device (output, cancel, input and the
+  busy detection follow the node a command ran on, not the page you are
+  looking at) - this also fixes live output from two devices bleeding into
+  each other when runs overlap.
+- Works on both web UIs and in dark mode; fixed a modern-UI crash when a
+  plugin dialog opens right after a core dialog built with
+  `setModalContent()` (Group Action) - the core wipes `#id_dialogOptions`,
+  which is now restored.
+
 ## 0.1.6
 
 - Terminal-mode keys are finally recognisable in dark mode: instead of the
