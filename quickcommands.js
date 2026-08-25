@@ -67,6 +67,7 @@ module.exports.quickcommands = function (parent) {
         'qcFmtMs',
         'qcClearLog',
         'qcMyDevicesInit',
+        'qcIsMacNode',
         'qcApplicableTo',
         'qcCmdsForNode',
         'qcDevicesBtnClick',
@@ -236,7 +237,7 @@ module.exports.quickcommands = function (parent) {
 .night .qcGL { color:var(--qccn); }
 .qcGL::before { content:""; width:7px; height:7px; border-radius:2px; background:var(--qcc); }
 .qcDot { display:inline-block; width:7px; height:7px; border-radius:2px; margin-right:5px; background:var(--qcc); }
-.qcDevBtn { display:inline-flex; align-items:center; gap:6px; margin-left:4px; padding:2px 10px 3px; border:1px solid #8f9a9f; border-bottom-width:3px; border-radius:4px; background:#fff; color:#1a1a1a; font-family:inherit; font-size:12px; font-weight:bold; cursor:pointer; vertical-align:middle; }
+.qcDevBtn { display:inline-flex; align-items:center; gap:6px; margin:0 4px; padding:2px 10px 3px; border:1px solid #8f9a9f; border-bottom-width:3px; border-radius:4px; background:#fff; color:#1a1a1a; font-family:inherit; font-size:12px; font-weight:bold; cursor:pointer; vertical-align:middle; }
 .qcDevBtn .qcZap { color:#B8741A; }
 .qcDevBtn:hover:enabled { background:#f4f8f7; }
 .qcDevBtn:active:enabled { transform:translateY(1px); border-bottom-width:2px; }
@@ -244,6 +245,8 @@ module.exports.quickcommands = function (parent) {
 .qcDevBtn:focus-visible { outline:2px solid #1E6BD6; outline-offset:1px; }
 .night .qcDevBtn { background:#111; border-color:#555; color:#ddd; }
 .night .qcDevBtn:hover:enabled { background:#1d2422; }
+.qcDevBtnBs { font-weight:600; }
+.qcDevBtnBs .qcZap { color:#FFC533; margin-right:4px; }
 .qcChips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:4px; text-align:left; }
 .qcChip { font-size:11px; border:1px solid #c9d2ce; border-radius:999px; padding:1px 9px 2px; background:#f2f4f3; color:#33403b; }
 .night .qcChip { background:#1a1f1e; border-color:#333; color:#b8c2bd; }
@@ -832,7 +835,10 @@ module.exports.quickcommands = function (parent) {
             var ga = document.getElementById('GroupActionButton');
             if (ga != null) {
                 var b = document.createElement('button');
-                b.id = 'qcDevicesBtn'; b.type = 'button'; b.className = 'qcDevBtn';
+                b.id = 'qcDevicesBtn'; b.type = 'button';
+                // The modern UI's toolbar buttons are Bootstrap; matching their
+                // classes gives the same height and the same gap to the next control.
+                b.className = (typeof showModal === 'function') ? (ga.className + ' qcDevBtnBs').replace('btn-primary', 'btn-secondary') : 'qcDevBtn';
                 b.title = 'Run a quick command on all selected devices';
                 b.innerHTML = '<span class="qcZap">⚡</span>Quick Commands';
                 b.disabled = ga.disabled;
@@ -906,6 +912,14 @@ module.exports.quickcommands = function (parent) {
         } catch (e) { }
     };
 
+    // macOS agents, by agent id (the core has no isMacNode helper); the osdesc
+    // check catches agents an older list does not know.
+    obj.qcIsMacNode = function (node) {
+        if ((node == null) || (node.agent == null)) return false;
+        if ([14, 16, 29, 10005].indexOf(node.agent.id) >= 0) return true;
+        return (typeof node.osdesc == 'string') && (/mac\s?os|os\s?x/i.test(node.osdesc));
+    };
+
     // Does this command apply to that device's OS? (per-node variant of qcApplicable)
     obj.qcApplicableTo = function (cmd, node) {
         if ((node == null) || (node.mtype != 2) || (node.agent == null)) return false;
@@ -943,17 +957,19 @@ module.exports.quickcommands = function (parent) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         if (st.config == null) { Q.qcRequestConfig(); return false; }
         if (typeof xxdialogMode != 'undefined' && xxdialogMode) return false;
-        var devs = [], win = 0, nix = 0, offline = 0, norights = 0, noagent = 0;
+        var devs = [], win = 0, mac = 0, nix = 0, offline = 0, norights = 0, noagent = 0;
         nodeids.forEach(function (id) {
             var n = getNodeFromId(id);
             if ((n == null) || (n.mtype != 2) || (n.agent == null)) { noagent++; return; }
             if ((GetNodeRights(n) & 131072) == 0) { norights++; return; }        // no run-commands right
             if ((n.conn & 1) == 0) { offline++; return; }
-            devs.push(n); if (isWindowsNode(n)) { win++; } else { nix++; }
+            devs.push(n);
+            if (isWindowsNode(n)) { win++; } else if (pluginHandler.quickcommands.qcIsMacNode(n)) { mac++; } else { nix++; }
         });
         var chips = '<div class="qcChips"><span class="qcChip"><b>' + devs.length + '</b> device' + (devs.length == 1 ? '' : 's') + '</span>'
             + (win ? ('<span class="qcChip"><b>' + win + '</b> Windows</span>') : '')
-            + (nix ? ('<span class="qcChip"><b>' + nix + '</b> Linux / other</span>') : '')
+            + (mac ? ('<span class="qcChip"><b>' + mac + '</b> macOS</span>') : '')
+            + (nix ? ('<span class="qcChip"><b>' + nix + '</b> Linux / BSD</span>') : '')
             + (offline ? ('<span class="qcChip">' + offline + ' offline - skipped</span>') : '')
             + (norights ? ('<span class="qcChip">' + norights + ' without run rights - skipped</span>') : '')
             + (noagent ? ('<span class="qcChip">' + noagent + ' without agent - skipped</span>') : '') + '</div>';
