@@ -10,9 +10,9 @@ One-click keys for the commands you type again and again — `ipconfig /all`, `g
 | --- | --- |
 | **Terminal tab** | A strip of keys under the toolbar, or a *Quick commands* menu button inside it. Each person can switch between the two; the administrator picks the default. |
 | **General tab** | A *Quick commands* panel for the keys you flag "Show on General". |
-| **Plugins › Quick Commands tab** | Every key for the device plus a run log with the output of everything you ran this session. |
+| **Plugins › Quick Commands tab** | Every key for the device plus a run log with the output of everything you ran on this device - including group runs from My Devices. The log is kept per browser tab and survives a page reload. |
 | **My Server › Plugins › Quick Commands** | The editor: groups, drag-to-reorder, import/export as JSON. |
-| **My Devices — selection** | Check devices, press **⚡ Quick Commands** next to *Group Action* (or pick *⚡ Run quick command* inside Group Action). A picker shows which commands fit how many of the selected devices; the run opens a results window with a live row per device. |
+| **My Devices — selection** | Check devices, press **⚡ Quick Commands** next to *Group Action* (or pick *⚡ Run quick command* inside Group Action). A picker shows which commands fit how many of the selected devices; the run opens a results window with a live row per device. Closing a device's output window leads back to the overview, and a ⚡ pill in the bottom right corner re-opens the overview after it was closed. |
 | **My Devices — right-click** | A **⚡ Quick Commands** flyout in the device context menu runs a command on that device directly. Shown only on connected agents you may run commands on. |
 
 Every key shows its **name and the literal command**, a badge for the shell (`CMD`, `PS`, `SH`, `AGENT`), and only appears on devices it applies to (CMD/PowerShell on Windows, SH elsewhere, agent-console commands everywhere).

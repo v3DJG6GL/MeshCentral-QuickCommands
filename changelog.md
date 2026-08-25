@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.1
+
+- The results window of a group run can be found again: closing the output
+  window of one device leads back to the results overview (OK button), and a
+  small **⚡ pill** in the bottom right corner of the page brings the overview
+  back after it was closed - it shows the command and the live done/failed
+  count, stays until the next group run and can be dismissed with its ×.
+- The **run log** on the device's Plugins tab now also lists group runs that
+  touched this device (marked "group run"), and it survives a page reload:
+  the log is kept per browser tab (large outputs are capped at 100 kB in the
+  saved copy). A run that was still going when the page reloaded is closed
+  with a note - its stream cannot be picked up again.
+- Log entries are filtered per device instead of being wiped when switching
+  devices, so coming back to a device shows its earlier runs again; *Clear*
+  only clears the shown device's entries.
+
 ## 0.2.0
 
 - Quick commands come to the My Devices page, in two ways:

@@ -81,6 +81,8 @@ module.exports.quickcommands = function (parent) {
         'qcBulkRowUpdate',
         'qcBulkShow',
         'qcBulkCopy',
+        'qcBulkPillUpdate',
+        'qcLogSave',
         'qcCxUpdate',
         'qcCxToggleFly',
         'qcCxFlyHide',
@@ -94,6 +96,16 @@ module.exports.quickcommands = function (parent) {
         var Q = pluginHandler.quickcommands;
         if (Q._st == null) {
             Q._st = { config: null, canManage: false, pending: {}, log: [], menuOpen: false, hooked: false, nodeid: null, mdInit: false, cfgReq: false, cxNodeid: null, picker: null, bulk: null };
+            // The run log survives a page reload (per browser tab). Runs that were
+            // still going when the page reloaded cannot be picked up again - the
+            // responseid is gone - so they are closed with a note.
+            try {
+                var saved = sessionStorage.getItem('qcRunLog');
+                if (saved) {
+                    Q._st.log = JSON.parse(saved);
+                    Q._st.log.forEach(function (e) { if (e.state == 'running') { e.state = 'error'; e.error = 'the page was reloaded while it ran'; } });
+                }
+            } catch (e) { }
         }
         return Q._st;
     };
@@ -122,7 +134,7 @@ module.exports.quickcommands = function (parent) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         Q.qcInjectStyles();
         try { pluginHandler.registerPluginTab({ tabId: 'pluginQuickCommands', tabTitle: 'Quick Commands' }); } catch (e) { }
-        if (st.nodeid != nodeid) { st.log = []; st.nodeid = nodeid; }
+        st.nodeid = nodeid; // the log is kept across devices and filtered per node when rendered
         if (st.config == null) { Q.qcRequestConfig(); } else { Q.qcRenderAll(); Q.qcRequestConfig(); }
     };
 
@@ -253,6 +265,16 @@ module.exports.quickcommands = function (parent) {
 #qcCxItem .qcZap { color:#B8741A; font-weight:bold; }
 #qcCxFly { position:fixed; z-index:1001; min-width:260px; max-height:60vh; overflow:auto; background:#fff; border:1px solid #8f9a9f; box-shadow:0 4px 14px rgba(0,0,0,0.25); font-size:12px; text-align:left; color:#000; display:none; line-height:normal; }
 .night #qcCxFly { background:#111; border-color:#555; color:#ddd; }
+#qcBulkPill { position:fixed; right:18px; bottom:18px; z-index:1000; display:none; align-items:center; gap:6px; padding:6px 10px 7px; border:1px solid #8f9a9f; border-bottom-width:3px; border-radius:16px; background:#fff; color:#1a1a1a; font-size:12px; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,0.25); max-width:340px; white-space:nowrap; }
+#qcBulkPill b { overflow:hidden; text-overflow:ellipsis; }
+#qcBulkPill .qcZap { color:#B8741A; font-weight:bold; }
+#qcBulkPill:hover { background:#f4f8f7; }
+#qcBulkPill #qcBulkPillX { margin-left:6px; padding:0 4px; color:#5a6368; font-weight:bold; border-radius:8px; }
+#qcBulkPill #qcBulkPillX:hover { background:#e3e7e5; color:#000; }
+.night #qcBulkPill { background:#181d1b; border-color:#555; color:#ddd; }
+.night #qcBulkPill:hover { background:#1d2422; }
+.night #qcBulkPill #qcBulkPillX { color:#98A3AD; }
+.night #qcBulkPill #qcBulkPillX:hover { background:#2a322f; color:#fff; }
 `;
         // Fixed palette; each entry is [key stripe, group label on light, group label on night].
         var pal = { red: ['#D2493D', '#B03A30', '#E06459'], orange: ['#D97A1F', '#A85E14', '#E89A4C'], amber: ['#C9A227', '#8F7418', '#D9B84A'], green: ['#3AA06A', '#2C7A50', '#5CB88A'], teal: ['#2E9E9B', '#23807D', '#4FB8B5'], blue: ['#3D7DD8', '#2D62B0', '#5B94E4'], purple: ['#8A63D2', '#6F4DB0', '#A585E0'], pink: ['#C75B9B', '#A34579', '#D67FB2'], slate: ['#6B7280', '#4E5560', '#98A3AD'] };
@@ -451,20 +473,42 @@ module.exports.quickcommands = function (parent) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         var host = document.getElementById('qcLog');
         if (host == null) return;
-        var x = '<div class="qcPanelH"><span>Run log</span><span class="qcHint">this session</span><span class="qcGrow"></span>' + (st.log.length ? '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearLog()">Clear</span>' : '') + '</div>';
-        if (st.log.length == 0) { x += '<div class="qcEmpty">Nothing has run yet. Output of every command you run from here, the General tab or the Terminal tab is kept in this list.</div>'; }
+        var shown = 0, rows = '';
         for (var i = 0; i < st.log.length; i++) {
             var e = st.log[i], status;
+            if ((e.nodeid != null) && (e.nodeid != st.nodeid)) continue; // other device's runs stay in their own log
+            shown++;
             if (e.state == 'running') status = '<span class="qcMuted">running…</span>';
             else if (e.state == 'typed') status = '<span class="qcMuted">typed into terminal</span>';
             else if (e.state == 'error') status = '<span class="qcErr">' + Q.qcEsc(e.error) + '</span>';
             else status = '<span class="qcOk">done · ' + Q.qcFmtMs(e.ms) + '</span>';
-            x += '<div class="qcLogRow" onclick="return pluginHandler.quickcommands.qcShowOutput(' + i + ')"><span class="qcT">' + Q.qcEsc(e.time) + '</span><span class="qcTag ' + e.cmd.shell + '">' + Q.qcEsc(e.cmd.shell == 'ps' ? 'PS' : e.cmd.shell.toUpperCase()) + '</span><b>' + Q.qcEsc(e.cmd.name) + '</b><span class="qcC">' + Q.qcEsc(e.cmd.command.split(/\r?\n/)[0]) + '</span><span class="qcGrow"></span>' + status + '</div>';
+            if (e.bulk) status = '<span class="qcMuted" style="font-size:11px">group run</span>&nbsp;&nbsp;' + status;
+            rows += '<div class="qcLogRow" onclick="return pluginHandler.quickcommands.qcShowOutput(' + i + ')"><span class="qcT">' + Q.qcEsc(e.time) + '</span><span class="qcTag ' + e.cmd.shell + '">' + Q.qcEsc(e.cmd.shell == 'ps' ? 'PS' : e.cmd.shell.toUpperCase()) + '</span><b>' + Q.qcEsc(e.cmd.name) + '</b><span class="qcC">' + Q.qcEsc(e.cmd.command.split(/\r?\n/)[0]) + '</span><span class="qcGrow"></span>' + status + '</div>';
         }
-        host.innerHTML = x;
+        var x = '<div class="qcPanelH"><span>Run log</span><span class="qcHint">kept across reloads in this tab</span><span class="qcGrow"></span>' + (shown ? '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearLog()">Clear</span>' : '') + '</div>';
+        if (shown == 0) { x += '<div class="qcEmpty">Nothing has run on this device yet. Output of every command you run from here, the General tab, the Terminal tab or a My Devices group run is kept in this list.</div>'; }
+        host.innerHTML = x + rows;
     };
 
-    obj.qcClearLog = function () { var st = pluginHandler.quickcommands.qcState(); st.log = []; pluginHandler.quickcommands.qcRenderLog(); return false; };
+    obj.qcClearLog = function () {
+        var Q = pluginHandler.quickcommands, st = Q.qcState();
+        st.log = st.log.filter(function (e) { return (e.nodeid != null) && (e.nodeid != st.nodeid); });
+        Q.qcLogSave();
+        Q.qcRenderLog();
+        return false;
+    };
+
+    // Persist the run log for this browser tab; heavy fields are capped so a big
+    // output cannot blow the sessionStorage quota (~5MB) away.
+    obj.qcLogSave = function () {
+        var st = pluginHandler.quickcommands.qcState();
+        try {
+            var out = st.log.map(function (e) {
+                return { cmd: e.cmd, state: e.state, time: e.time, start: e.start, ms: e.ms, error: e.error, rid: e.rid, nodeid: e.nodeid, name: e.name, bulk: e.bulk, canKill: e.canKill, output: (e.output && e.output.length > 100000) ? e.output.substring(0, 100000) + '\n[...truncated for the saved log]' : e.output };
+            });
+            sessionStorage.setItem('qcRunLog', JSON.stringify(out));
+        } catch (ex) { }
+    };
     obj.qcFmtMs = function (ms) { if (ms == null) return ''; return (ms < 1000) ? (ms + ' ms') : ((ms / 1000).toFixed(1) + ' s'); };
 
     // MeshCentral has two web UIs. The classic one (default.handlebars) shows a
@@ -533,8 +577,9 @@ module.exports.quickcommands = function (parent) {
         if ((currentNode == null) || (currentNode.conn & 1) == 0) { Q.qcDialog('Quick commands', 1, null, 'The agent is not connected, so "' + Q.qcEsc(cmd.name) + '" cannot run right now.'); return; }
         var types = { cmd: 1, ps: 2, sh: 3, agent: 4 };
         var rid = 'qc-' + Math.random().toString(36).substring(2, 12);
-        var entry = { cmd: cmd, state: 'running', time: new Date().toLocaleTimeString(), start: Date.now(), output: '', rid: rid, nodeid: currentNode._id };
+        var entry = { cmd: cmd, state: 'running', time: new Date().toLocaleTimeString(), start: Date.now(), output: '', rid: rid, nodeid: currentNode._id, name: currentNode.name };
         st.log.unshift(entry); if (st.log.length > 50) st.log.pop();
+        Q.qcLogSave();
         st.pending[rid] = entry;
         // The agent streams everything the command prints to the console channel while it
         // runs (the reply only arrives when the shell exits), so collect it for live output.
@@ -592,6 +637,7 @@ module.exports.quickcommands = function (parent) {
         e.ms = Date.now() - e.start;
         e.state = error ? 'error' : 'done';
         e.error = error;
+        Q.qcLogSave();
         Q.qcRenderAll();
         // If the output window is already open on this run, update it in place.
         if (typeof xxdialogMode != 'undefined' && xxdialogMode) {
@@ -604,6 +650,7 @@ module.exports.quickcommands = function (parent) {
                 if (btns) { btns.innerHTML = Q.qcButtonsHtml(e, st.log.indexOf(e)); }
                 var ir = document.getElementById('qcInRow');
                 if (ir) { ir.style.display = 'none'; }
+                if (e.bulk) { Q.qcBulkPillUpdate(); }
                 return;
             }
         }
@@ -682,7 +729,10 @@ module.exports.quickcommands = function (parent) {
             var y = '<input type="button" value="Copy" onclick="return pluginHandler.quickcommands.qcBulkCopy(\'' + Q.qcEsc(e.rid) + '\')" />';
             if (e.state == 'running') { y += '&nbsp;<input type="button" value="Cancel" onclick="return pluginHandler.quickcommands.qcCancelRun(\'' + Q.qcEsc(e.rid) + '\')" />'; }
             else if (e.canKill) { y += '&nbsp;<input type="button" value="Free the agent" title="Kills the stuck command on the device so the agent accepts run commands again (needs agent console rights)" onclick="return pluginHandler.quickcommands.qcFreeAgent(this,\'' + Q.qcEsc(e.nodeid) + '\')" />'; }
-            y += '&nbsp;<input type="button" value="Back to results" onclick="return pluginHandler.quickcommands.qcBulkBack()" />';
+            // Only when this run's results overview still exists (not after a reload
+            // or a newer group run).
+            var b = pluginHandler.quickcommands.qcState().bulk;
+            if (b && b.byRid[e.rid]) { y += '&nbsp;<input type="button" value="Back to results" onclick="return pluginHandler.quickcommands.qcBulkBack()" />'; }
             return y;
         }
         var x = '<input type="button" value="Copy" onclick="return pluginHandler.quickcommands.qcCopyOutput(' + idx + ')" />';
@@ -712,7 +762,7 @@ module.exports.quickcommands = function (parent) {
         var inputRow = ((e.state == 'running') && (e.cmd.shell != 'agent'))
             ? '<div id="qcInRow" style="margin-top:8px;display:flex;gap:6px"><input type="text" id="qcInText" style="flex:1" placeholder="Answer the command\'s question (e.g. j or n) - also works before it appears" onkeydown="if(event.keyCode==13){event.preventDefault();pluginHandler.quickcommands.qcSendInput(\'' + Q.qcEsc(e.rid) + '\');return false;}" /><input type="button" value="Send" onclick="return pluginHandler.quickcommands.qcSendInput(\'' + Q.qcEsc(e.rid) + '\')" /></div>'
             : '';
-        var html = '<div class="qcOutH"><span class="qcTag ' + e.cmd.shell + '">' + Q.qcEsc(e.cmd.shell == 'ps' ? 'PS' : e.cmd.shell.toUpperCase()) + '</span><b>' + Q.qcEsc(e.cmd.name) + '</b><span>on ' + Q.qcEsc(currentNode ? currentNode.name : '') + '</span><span class="qcGrow"></span><span id="qcOutStatus">' + status + '</span></div>'
+        var html = '<div class="qcOutH"><span class="qcTag ' + e.cmd.shell + '">' + Q.qcEsc(e.cmd.shell == 'ps' ? 'PS' : e.cmd.shell.toUpperCase()) + '</span><b>' + Q.qcEsc(e.cmd.name) + '</b><span>on ' + Q.qcEsc(e.name || (currentNode ? currentNode.name : '')) + '</span><span class="qcGrow"></span><span id="qcOutStatus">' + status + '</span></div>'
             + '<div class="qcOutH"><span class="qcC">' + Q.qcEsc(e.cmd.command.split(/\r?\n/)[0]) + '</span><span class="qcGrow"></span><span>' + runAs + '</span></div>'
             + '<pre class="qcOut" id="qcOutPre"' + (e.rid ? (' data-rid="' + Q.qcEsc(e.rid) + '"') : '') + '>' + body + '</pre>'
             + inputRow
@@ -741,8 +791,9 @@ module.exports.quickcommands = function (parent) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         if ((currentNode == null) || (currentNode.conn & 1) == 0) { Q.qcDialog('Quick commands', 1, null, 'The agent is not connected, so the terminal cannot be opened.'); return; }
         if (xxcurrentView != 12) { go(12); }
-        var entry = { cmd: cmd, state: 'typed', time: new Date().toLocaleTimeString(), start: Date.now(), output: '' };
+        var entry = { cmd: cmd, state: 'typed', time: new Date().toLocaleTimeString(), start: Date.now(), output: '', nodeid: currentNode._id, name: currentNode.name };
         st.log.unshift(entry); if (st.log.length > 50) st.log.pop();
+        Q.qcLogSave();
         var text = cmd.command.replace(/\r?\n/g, '\r') + '\r';
         var send = function () { Q.qcSendToTerminal(text); Q.qcRenderLog(); };
         if ((typeof terminal != 'undefined') && (terminal != null) && (terminal.State == 3)) { send(); return; }
@@ -975,13 +1026,37 @@ module.exports.quickcommands = function (parent) {
             var rid = 'qcb-' + Math.random().toString(36).substring(2, 12);
             var e = { cmd: cmd, state: 'running', time: new Date().toLocaleTimeString(), start: Date.now(), output: '', rid: rid, nodeid: id, name: n.name, bulk: true, collect: true };
             st.pending[rid] = e; st.bulk.runs.push(rid); st.bulk.byRid[rid] = e;
+            st.log.unshift(e); if (st.log.length > 50) st.log.pop(); // group runs land in the device's run log too
             if (cmd.shell == 'agent') { e.timer = setTimeout(function () { pluginHandler.quickcommands.qcFinish(rid, null); }, 4000); }
             else { e.timer = setTimeout(function () { var Q2 = pluginHandler.quickcommands, e2 = Q2.qcState().pending[rid]; if (e2) e2.canKill = true; Q2.qcFinish(rid, 'No reply from the agent after 5 minutes. The command is probably still running or waiting for input on the device and blocks further run commands. "Free the agent" kills it on the device.'); }, 300000); }
             meshserver.send({ action: 'runcommands', nodeids: [id], type: types[cmd.shell] || 1, cmds: cmd.command, runAsUser: (cmd.runAs | 0), reply: true, responseid: rid });
         });
+        Q.qcLogSave();
+        Q.qcBulkPillUpdate();
         // A confirm dialog may just be hiding; give the Bootstrap modal its gap.
         setTimeout(function () { pluginHandler.quickcommands.qcBulkResults(); }, 500);
         return false;
+    };
+
+    // Floating pill (bottom right) that brings the results overview back after it
+    // was closed - it stays as long as the last group run is around and can be
+    // dismissed with its ×.
+    obj.qcBulkPillUpdate = function () {
+        var Q = pluginHandler.quickcommands, st = Q.qcState();
+        var p = document.getElementById('qcBulkPill');
+        if (st.bulk == null) { if (p) { p.style.display = 'none'; } return; }
+        if (p == null) {
+            p = document.createElement('div');
+            p.id = 'qcBulkPill';
+            p.onclick = function (ev) {
+                if (ev.target && ev.target.id == 'qcBulkPillX') { pluginHandler.quickcommands.qcState().bulk = null; return pluginHandler.quickcommands.qcBulkPillUpdate(); }
+                if (typeof xxdialogMode != 'undefined' && xxdialogMode) return false;
+                return pluginHandler.quickcommands.qcBulkResults();
+            };
+            document.body.appendChild(p);
+        }
+        p.innerHTML = '<span class="qcZap">⚡</span><b>' + Q.qcEsc(st.bulk.cmd.name) + '</b>&nbsp;·&nbsp;' + Q.qcBulkSummary() + '<span id="qcBulkPillX" title="Dismiss">×</span>';
+        p.style.display = 'inline-flex';
     };
 
     obj.qcBulkSummary = function () {
@@ -1026,6 +1101,7 @@ module.exports.quickcommands = function (parent) {
         if (row) { row.innerHTML = Q.qcBulkRowHtml(e); }
         var sum = document.getElementById('qcBulkSum');
         if (sum) { sum.innerHTML = Q.qcBulkSummary(); }
+        Q.qcBulkPillUpdate();
     };
 
     // Output window for one device of a bulk run (live via qcOutPre, like the single run).
@@ -1045,14 +1121,17 @@ module.exports.quickcommands = function (parent) {
                 + '<pre class="qcOut" id="qcOutPre" data-rid="' + Q2.qcEsc(e.rid) + '">' + body + '</pre>'
                 + inputRow
                 + '<div style="margin-top:8px;text-align:right" id="qcOutBtns">' + Q2.qcButtonsHtml(e, -1) + '</div>';
-            Q2.qcDialog('Quick command', 1, null, html, true);
+            // OK leads back to the results overview instead of just closing.
+            Q2.qcDialog('Quick command', 1, function () { pluginHandler.quickcommands.qcBulkBack(); }, html, true);
         });
     };
 
     obj.qcBulkCopy = function (rid) {
-        var b = pluginHandler.quickcommands.qcState().bulk;
-        if ((b == null) || (b.byRid[rid] == null)) return false;
-        try { navigator.clipboard.writeText(b.byRid[rid].output || ''); } catch (ex) { }
+        var st = pluginHandler.quickcommands.qcState(), b = st.bulk;
+        var e = (b && b.byRid[rid]) || null;
+        if (e == null) { for (var i = 0; i < st.log.length; i++) { if (st.log[i].rid == rid) { e = st.log[i]; break; } } }
+        if (e == null) return false;
+        try { navigator.clipboard.writeText(e.output || ''); } catch (ex) { }
         return false;
     };
 
