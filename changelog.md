@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.2
+
+- The results of a group run moved into the My Devices toolbar: a **results
+  button** appears next to *⚡ Quick Commands* while a run is around - spinner
+  or ⚡, the command's name, live `2✓ 1✗` counts and a dismiss ×. Clicking it
+  re-opens the results overview; unlike *Quick Commands* it works without a
+  selection. On every other page the floating bottom-right pill stays, redrawn
+  in the same style with the same counts; the two hand over automatically as
+  you navigate.
+- macOS devices get their own count in the multi-select picker instead of
+  being lumped into "Linux / other" (now "Linux / BSD").
+- The *⚡ Quick Commands* toolbar button uses the modern UI's own Bootstrap
+  sizing, matching the height of *Select All* / *Group Action* and the gap
+  before the filter box; on the classic UI it keeps the keycap look with the
+  missing right margin added.
+
 ## 0.2.1
 
 - The results window of a group run can be found again: closing the output

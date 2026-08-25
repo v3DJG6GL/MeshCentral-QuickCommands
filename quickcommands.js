@@ -83,6 +83,9 @@ module.exports.quickcommands = function (parent) {
         'qcBulkShow',
         'qcBulkCopy',
         'qcBulkPillUpdate',
+        'qcBulkCounts',
+        'qcBulkCtrlHtml',
+        'qcBulkCtrlClick',
         'qcLogSave',
         'qcCxUpdate',
         'qcCxToggleFly',
@@ -268,16 +271,30 @@ module.exports.quickcommands = function (parent) {
 #qcCxItem .qcZap { color:#B8741A; font-weight:bold; }
 #qcCxFly { position:fixed; z-index:1001; min-width:260px; max-height:60vh; overflow:auto; background:#fff; border:1px solid #8f9a9f; box-shadow:0 4px 14px rgba(0,0,0,0.25); font-size:12px; text-align:left; color:#000; display:none; line-height:normal; }
 .night #qcCxFly { background:#111; border-color:#555; color:#ddd; }
-#qcBulkPill { position:fixed; right:18px; bottom:18px; z-index:1000; display:none; align-items:center; gap:6px; padding:6px 10px 7px; border:1px solid #8f9a9f; border-bottom-width:3px; border-radius:16px; background:#fff; color:#1a1a1a; font-size:12px; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,0.25); max-width:340px; white-space:nowrap; }
-#qcBulkPill b { overflow:hidden; text-overflow:ellipsis; }
+/* Shared parts of the results controls (toolbar button + floating pill). */
+.qcRN { font-weight:600; overflow:hidden; text-overflow:ellipsis; }
+.qcRC { font-family:"Cascadia Mono", Consolas, monospace; font-size:12px; }
+.qcRCg { color:#2C8C5A; } .qcRCr { color:#C8362B; }
+.night .qcRCg, .qcResBtBs .qcRCg { color:#5CB88A; } .night .qcRCr, .qcResBtBs .qcRCr { color:#E06459; }
+.qcRX { margin-left:2px; padding:0 4px; color:#5a6368; font-weight:bold; border-radius:6px; }
+.qcRX:hover { background:#e3e7e5; color:#000; }
+.night .qcRX, .qcResBtBs .qcRX { color:#98A3AD; }
+.night .qcRX:hover, .qcResBtBs .qcRX:hover { background:rgba(255,255,255,0.14); color:#fff; }
+/* Toolbar results button, classic UI. */
+.qcResBt { display:inline-flex; align-items:center; gap:6px; margin:0 4px 0 0; padding:2px 9px 3px; border:1px solid rgba(184,116,26,0.55); border-radius:4px; background:#fff; color:#1a1a1a; font-family:inherit; font-size:12px; cursor:pointer; vertical-align:middle; white-space:nowrap; }
+.qcResBt:hover { background:#fdf8f0; }
+.qcResBt .qcZap { color:#B8741A; font-weight:bold; }
+.night .qcResBt { background:#181d1b; border-color:rgba(224,163,60,0.5); color:#ddd; }
+.night .qcResBt:hover { background:#1d2422; }
+/* Toolbar results button, modern UI: Bootstrap classes carry size and theme. */
+.qcResBtBs { display:inline-flex; align-items:center; gap:6px; border-color:rgba(255,197,51,0.45) !important; white-space:nowrap; }
+.qcResBtBs .qcZap { color:#FFC533; }
+/* Floating pill (every page except My Devices). */
+#qcBulkPill { position:fixed; right:18px; bottom:18px; z-index:1000; display:none; align-items:center; gap:6px; padding:6px 11px 7px; border:1px solid rgba(184,116,26,0.55); border-radius:16px; background:#fff; color:#1a1a1a; font-size:12px; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,0.25); max-width:340px; white-space:nowrap; }
 #qcBulkPill .qcZap { color:#B8741A; font-weight:bold; }
-#qcBulkPill:hover { background:#f4f8f7; }
-#qcBulkPill #qcBulkPillX { margin-left:6px; padding:0 4px; color:#5a6368; font-weight:bold; border-radius:8px; }
-#qcBulkPill #qcBulkPillX:hover { background:#e3e7e5; color:#000; }
-.night #qcBulkPill { background:#181d1b; border-color:#555; color:#ddd; }
+#qcBulkPill:hover { background:#fdf8f0; }
+.night #qcBulkPill { background:#181d1b; border-color:rgba(224,163,60,0.5); color:#ddd; }
 .night #qcBulkPill:hover { background:#1d2422; }
-.night #qcBulkPill #qcBulkPillX { color:#98A3AD; }
-.night #qcBulkPill #qcBulkPillX:hover { background:#2a322f; color:#fff; }
 `;
         // Fixed palette; each entry is [key stripe, group label on light, group label on night].
         var pal = { red: ['#D2493D', '#B03A30', '#E06459'], orange: ['#D97A1F', '#A85E14', '#E89A4C'], amber: ['#C9A227', '#8F7418', '#D9B84A'], green: ['#3AA06A', '#2C7A50', '#5CB88A'], teal: ['#2E9E9B', '#23807D', '#4FB8B5'], blue: ['#3D7DD8', '#2D62B0', '#5B94E4'], purple: ['#8A63D2', '#6F4DB0', '#A585E0'], pink: ['#C75B9B', '#A34579', '#D67FB2'], slate: ['#6B7280', '#4E5560', '#98A3AD'] };
@@ -846,6 +863,26 @@ module.exports.quickcommands = function (parent) {
                 ga.parentNode.insertBefore(b, ga.nextSibling);
                 // The core enables/disables Group Action from the selection count; mirror it.
                 new MutationObserver(function () { b.disabled = ga.disabled; }).observe(ga, { attributes: true, attributeFilter: ['disabled'] });
+                // Results button: appears next to it while a group run is around
+                // (the floating pill takes over on every other page).
+                var rb = document.createElement('button');
+                rb.id = 'qcResultsBtn'; rb.type = 'button';
+                rb.className = (typeof showModal === 'function') ? ('btn btn-secondary me-1 btn-sm qcResBtBs') : 'qcResBt';
+                rb.title = 'Group run results';
+                rb.style.display = 'none';
+                rb.onclick = function (ev) { return pluginHandler.quickcommands.qcBulkCtrlClick(ev); };
+                b.parentNode.insertBefore(rb, b.nextSibling);
+            }
+        } catch (e) { }
+        // The pill hides on My Devices and shows elsewhere; follow view changes.
+        try {
+            if (typeof go == 'function') {
+                var origGo = go;
+                window.go = function () {
+                    var r = origGo.apply(this, arguments);
+                    try { pluginHandler.quickcommands.qcBulkPillUpdate(); } catch (e) { }
+                    return r;
+                };
             }
         } catch (e) { }
         // 1A: one more operation in the native Group Action dialog.
@@ -1054,24 +1091,57 @@ module.exports.quickcommands = function (parent) {
         return false;
     };
 
-    // Floating pill (bottom right) that brings the results overview back after it
-    // was closed - it stays as long as the last group run is around and can be
-    // dismissed with its ×.
+    obj.qcBulkCounts = function () {
+        var st = pluginHandler.quickcommands.qcState(), b = st.bulk;
+        if (b == null) return null;
+        var run = 0, ok = 0, err = 0;
+        b.runs.forEach(function (rid) { var e = b.byRid[rid]; if (e.state == 'running') run++; else if (e.state == 'done') ok++; else err++; });
+        return { run: run, ok: ok, err: err };
+    };
+
+    // Shared content of the results controls (toolbar button on My Devices, the
+    // floating pill everywhere else): spinner or ⚡, the command, live counts, ×.
+    obj.qcBulkCtrlHtml = function () {
+        var Q = pluginHandler.quickcommands, st = Q.qcState(), b = st.bulk;
+        var c = Q.qcBulkCounts(); if (c == null) return '';
+        var name = (b.cmd.name.length > 14) ? (b.cmd.name.substring(0, 14) + '…') : b.cmd.name;
+        var x = c.run ? '<span class="qcSpin"></span>' : '<span class="qcZap">⚡</span>';
+        x += '<span class="qcRN">' + Q.qcEsc(name) + '</span><span class="qcRC">';
+        if (c.ok || !c.run) { x += '<span class="qcRCg">' + c.ok + '✓</span>'; }
+        if (c.run) { x += (c.ok ? '&nbsp;' : '') + c.run + '…'; }
+        if (c.err) { x += '&nbsp;<span class="qcRCr">' + c.err + '✗</span>'; }
+        x += '</span><span class="qcRX" title="Dismiss">×</span>';
+        return x;
+    };
+
+    // One click handler for both controls: × dismisses, the rest re-opens the overview.
+    obj.qcBulkCtrlClick = function (ev) {
+        var Q = pluginHandler.quickcommands;
+        if (ev && ev.target && ev.target.closest && ev.target.closest('.qcRX')) { Q.qcState().bulk = null; Q.qcBulkPillUpdate(); return false; }
+        if (typeof xxdialogMode != 'undefined' && xxdialogMode) return false;
+        return Q.qcBulkResults();
+    };
+
+    // Keep the results controls in sync: on My Devices the toolbar button shows
+    // the run, on every other page the floating pill does.
     obj.qcBulkPillUpdate = function () {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
+        var has = (st.bulk != null);
+        var onDevices = (typeof xxcurrentView != 'undefined') && (xxcurrentView == 1);
+        var tb = document.getElementById('qcResultsBtn');
+        if (tb) {
+            if (has) { tb.innerHTML = Q.qcBulkCtrlHtml(); tb.style.display = 'inline-flex'; }
+            else { tb.style.display = 'none'; }
+        }
         var p = document.getElementById('qcBulkPill');
-        if (st.bulk == null) { if (p) { p.style.display = 'none'; } return; }
+        if (!has || (onDevices && (tb != null))) { if (p) { p.style.display = 'none'; } return; }
         if (p == null) {
             p = document.createElement('div');
             p.id = 'qcBulkPill';
-            p.onclick = function (ev) {
-                if (ev.target && ev.target.id == 'qcBulkPillX') { pluginHandler.quickcommands.qcState().bulk = null; return pluginHandler.quickcommands.qcBulkPillUpdate(); }
-                if (typeof xxdialogMode != 'undefined' && xxdialogMode) return false;
-                return pluginHandler.quickcommands.qcBulkResults();
-            };
+            p.onclick = function (ev) { return pluginHandler.quickcommands.qcBulkCtrlClick(ev); };
             document.body.appendChild(p);
         }
-        p.innerHTML = '<span class="qcZap">⚡</span><b>' + Q.qcEsc(st.bulk.cmd.name) + '</b>&nbsp;·&nbsp;' + Q.qcBulkSummary() + '<span id="qcBulkPillX" title="Dismiss">×</span>';
+        p.innerHTML = Q.qcBulkCtrlHtml();
         p.style.display = 'inline-flex';
     };
 
