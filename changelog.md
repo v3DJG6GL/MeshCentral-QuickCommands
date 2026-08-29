@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- The keyword filter appears from **5 keys** on (was 10 - too high for a
+  typical device, which left most setups without a filter at all).
+
 ## 0.3.0
 
 - **Scoping — "Appears on"**: every command, and every group, can now be
@@ -14,7 +19,7 @@
   keys — running still goes through MeshCentral's normal permissions.
   Group rules live under the new **Scope…** tool on the group heading.
 - **Keyword filter** on the Terminal strip, the Terminal menu and the
-  General panel, shown once a device has 10 or more keys. Case-insensitive
+  General panel, shown once a device has 5 or more keys. Case-insensitive
   match over name, command and group with the hit highlighted in place;
   group chips stay; empty groups disappear. **/** jumps into the filter
   (never while a terminal is connected or while typing elsewhere), **Esc**

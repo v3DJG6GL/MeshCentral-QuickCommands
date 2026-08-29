@@ -472,8 +472,8 @@ module.exports.quickcommands = function (parent) {
         var view = getstore('qc_termview', (st.config && st.config.settings) ? st.config.settings.terminalView : 'strip');
         if ((st.config == null) || (cmds.length == 0)) { if (row) row.remove(); if (wrap) wrap.remove(); return; }
         var manage = st.canManage ? '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcOpenManage()">Manage…</span>' : '';
-        // The keyword filter earns its space once the device has 10+ keys.
-        var canFilter = (cmds.length >= 10);
+        // The keyword filter earns its space once the device has 5+ keys.
+        var canFilter = (cmds.length >= 5);
 
         if (view == 'menu') {
             if (row) row.remove();
@@ -620,7 +620,7 @@ module.exports.quickcommands = function (parent) {
         var cmds = Q.qcVisible('general');
         if ((st.config == null) || (cmds.length == 0)) { if (panel) panel.remove(); return; }
         if (panel == null) { panel = document.createElement('div'); panel.id = 'qcGeneral'; anchor.parentNode.insertBefore(panel, anchor); }
-        var canFilter = (cmds.length >= 10);
+        var canFilter = (cmds.length >= 5);
         var q = canFilter ? (st.gFilter || '') : '';
         var shown = cmds.filter(function (c) { return Q.qcFilterMatch(c, q); });
         var x = '<div class="qcPanel"><div class="qcPanelH"><span>Quick commands</span><span class="qcHint">Output opens in a window when the command finishes</span><span class="qcGrow"></span>';
