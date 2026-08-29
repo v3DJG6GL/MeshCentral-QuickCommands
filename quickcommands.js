@@ -52,6 +52,7 @@ module.exports.quickcommands = function (parent) {
         'qcRunAgain',
         'qcRunNow',
         'qcExec',
+        'qcCmds',
         'qcTypeIntoTerminal',
         'qcSendToTerminal',
         'qcIntercept',
@@ -591,6 +592,22 @@ module.exports.quickcommands = function (parent) {
         if (cmd.mode == 'terminal') { Q.qcTypeIntoTerminal(cmd); } else { Q.qcExec(cmd); }
     };
 
+    // The command text as it goes into the runcommands message. The agent pipes the
+    // script plus an 'exit' line into 'powershell -command -', whose raw host reads
+    // stdin line by line: a multi-line construct (if/else, function, here-string)
+    // is collected until a BLANK line submits it - so a script ending with a block
+    // swallows the exit line and waits forever, and a blank line INSIDE a block
+    // submits it half-finished. Shipping a multi-line script as one self-decoding
+    // line avoids that mode entirely (and keeps non-ASCII intact); the base64 is
+    // built from UTF-8 bytes to match [Text.Encoding]::UTF8 on the other side.
+    obj.qcCmds = function (cmd) {
+        if (cmd.shell != 'ps') return cmd.command;
+        if (cmd.command.indexOf('\n') == -1) return cmd.command + '\r\n';
+        var bytes = new TextEncoder().encode(cmd.command), bin = '';
+        for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return "iex([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + btoa(bin) + "')))\r\n";
+    };
+
     // Silent run through the agent's "runcommands"; the result comes back via qcIntercept.
     obj.qcExec = function (cmd) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
@@ -606,7 +623,7 @@ module.exports.quickcommands = function (parent) {
         entry.collect = true;
         if (cmd.shell == 'agent') { entry.timer = setTimeout(function () { pluginHandler.quickcommands.qcFinish(rid, null); }, 4000); }
         else { entry.timer = setTimeout(function () { var Q2 = pluginHandler.quickcommands, e2 = Q2.qcState().pending[rid]; if (e2) e2.canKill = true; Q2.qcFinish(rid, 'No reply from the agent after 5 minutes. The command is probably still running or waiting for input on the device and blocks further run commands. "Free the agent" kills it on the device.'); }, 300000); }
-        meshserver.send({ action: 'runcommands', nodeids: [currentNode._id], type: types[cmd.shell] || 1, cmds: cmd.command, runAsUser: (cmd.runAs | 0), reply: true, responseid: rid });
+        meshserver.send({ action: 'runcommands', nodeids: [currentNode._id], type: types[cmd.shell] || 1, cmds: Q.qcCmds(cmd), runAsUser: (cmd.runAs | 0), reply: true, responseid: rid });
         Q.qcRenderAll();
     };
 
@@ -1082,7 +1099,7 @@ module.exports.quickcommands = function (parent) {
             st.log.unshift(e); if (st.log.length > 50) st.log.pop(); // group runs land in the device's run log too
             if (cmd.shell == 'agent') { e.timer = setTimeout(function () { pluginHandler.quickcommands.qcFinish(rid, null); }, 4000); }
             else { e.timer = setTimeout(function () { var Q2 = pluginHandler.quickcommands, e2 = Q2.qcState().pending[rid]; if (e2) e2.canKill = true; Q2.qcFinish(rid, 'No reply from the agent after 5 minutes. The command is probably still running or waiting for input on the device and blocks further run commands. "Free the agent" kills it on the device.'); }, 300000); }
-            meshserver.send({ action: 'runcommands', nodeids: [id], type: types[cmd.shell] || 1, cmds: cmd.command, runAsUser: (cmd.runAs | 0), reply: true, responseid: rid });
+            meshserver.send({ action: 'runcommands', nodeids: [id], type: types[cmd.shell] || 1, cmds: Q.qcCmds(cmd), runAsUser: (cmd.runAs | 0), reply: true, responseid: rid });
         });
         Q.qcLogSave();
         Q.qcBulkPillUpdate();

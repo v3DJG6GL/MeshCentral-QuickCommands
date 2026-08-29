@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.3
+
+- Fixed: a **multi-line PowerShell command** could run forever with no output.
+  The agent feeds background runs line by line into `powershell -command -`,
+  whose reader collects a multi-line block (if/else, loop, function) until a
+  *blank* line submits it - a script ending with a block swallowed the closing
+  `exit` and waited forever, blocking the agent's run slot, and a blank line
+  inside a block submitted it half-finished. Multi-line PowerShell commands
+  are now shipped as a single self-decoding (base64) line, which avoids the
+  line reader entirely - blank lines, here-strings and umlauts all survive
+  unchanged. A run that is already stuck the old way can be freed by pressing
+  **Send** with an empty answer box (the sent blank line submits the pending
+  block), or with *Free the agent*.
+
 ## 0.2.2
 
 - The results of a group run moved into the My Devices toolbar: a **results
