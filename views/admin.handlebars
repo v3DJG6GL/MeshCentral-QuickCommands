@@ -55,8 +55,12 @@ button, input, select, textarea { font:inherit; color:inherit; }
 .grp { display:flex; flex-direction:column; gap:10px; }
 .grpH { display:flex; align-items:center; gap:10px; }
 .grpH b { font-weight:600; }
-.grpH .tools { display:flex; gap:4px; opacity:0; visibility:hidden; transition:opacity .18s ease .3s, visibility 0s linear .48s; }
-.grpH:hover .tools, .grpH:focus-within .tools { opacity:1; visibility:visible; transition-delay:0s, 0s; }
+.grpH .tools { display:none; gap:4px; align-items:center; flex-wrap:nowrap; opacity:0; transition:opacity .18s ease .3s, display .48s allow-discrete; }
+.grpH:hover .tools, .grpH:focus-within .tools { display:flex; opacity:1; transition-delay:0s; }
+@starting-style { .grpH .tools { opacity:0; } }
+.grpH .tools .btn { white-space:nowrap; }
+.grpH .tools .swrow { flex-wrap:nowrap; }
+.grpH .dragHint { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .keys { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-start; min-height:44px; }
 .keys.over { outline:2px dashed var(--acc); outline-offset:4px; border-radius:4px; }
 
@@ -113,8 +117,49 @@ textarea.in { min-height:64px; resize:vertical; }
 
 .toast { position:fixed; left:50%; bottom:18px; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:8px 14px; border-radius:4px; font-size:12px; opacity:0; transition:opacity .2s; pointer-events:none; }
 .toast.show { opacity:1; }
+/* Drag rail between the deck and the editor drawer. */
+.rail { width:9px; flex-shrink:0; cursor:col-resize; background:transparent; position:relative; border:0; padding:0; display:none; }
+.rail.show { display:block; }
+.rail::after { content:""; position:absolute; left:3px; top:0; bottom:0; width:3px; border-radius:2px; background:var(--line); transition:background .12s; }
+.rail:hover::after, .rail.on::after { background:var(--acc); }
+.rail:focus-visible { outline:2px solid var(--acc); outline-offset:-1px; }
+
+/* Overlays: the drawer's centered mode and the group scope dialog. */
+.ovl { position:fixed; inset:0; background:rgba(8,12,16,0.45); z-index:60; display:none; align-items:center; justify-content:center; padding:26px; }
+.ovl.open { display:flex; }
+.ovl .drawer { width:min(880px,92vw) !important; max-height:92vh; border:1px solid var(--line); border-radius:8px; box-shadow:0 24px 70px rgba(0,0,0,0.35); }
+.dlgPanel { background:var(--panel); border:1px solid var(--line); border-radius:8px; width:min(560px,94vw); max-height:92vh; overflow:auto; padding:18px 22px 22px; display:flex; flex-direction:column; gap:14px; box-shadow:0 24px 70px rgba(0,0,0,0.35); }
+
+/* Command editor: auto-growing, no soft wrap, line numbers from the 4th line. */
+.cmdwrap { display:flex; border:1px solid var(--ctl); border-radius:4px; background:var(--panel); overflow:hidden; }
+.cmdwrap:focus-within { outline:2px solid var(--acc); outline-offset:2px; }
+.cmdwrap .gut { display:none; padding:7px 7px 7px 0; min-width:30px; text-align:right; color:var(--faint); background:var(--bg); border-right:1px solid var(--line2); font-family:"Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace; font-size:12px; line-height:18px; white-space:pre; user-select:none; flex-shrink:0; overflow:hidden; }
+.cmdwrap.gutter .gut { display:block; }
+.cmdwrap textarea { flex:1; min-width:0; border:0; outline:none; background:transparent; color:var(--ink); resize:none; padding:7px 9px; font-family:"Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace; font-size:12px; line-height:18px; white-space:pre; overflow-x:auto; overflow-y:hidden; min-height:64px; }
+
+/* "Appears on" scope editor. */
+.scopebox { border:1px solid var(--line); border-radius:6px; padding:10px 11px; display:flex; flex-direction:column; gap:8px; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; }
+.chip { display:inline-flex; align-items:center; gap:6px; padding:2px 6px 3px 9px; border-radius:13px; background:var(--acc-soft); color:var(--acc); font-size:12px; border:1px solid transparent; }
+.chip .k { font-family:"Cascadia Mono", Consolas, monospace; font-size:8.5px; font-weight:700; letter-spacing:0.5px; opacity:0.75; }
+.chip button { border:0; background:none; color:inherit; cursor:pointer; font:inherit; font-size:12px; line-height:1; padding:0 2px; }
+.chip.miss { background:transparent; border-color:var(--danger); color:var(--danger); }
+.addt { position:relative; }
+.pop { position:absolute; z-index:70; top:calc(100% + 4px); left:0; width:300px; max-height:280px; overflow:auto; background:var(--panel); border:1px solid var(--ctl); border-radius:6px; box-shadow:0 10px 30px rgba(0,0,0,0.25); display:none; }
+.pop.open { display:block; }
+.pop .psearch { padding:7px; border-bottom:1px solid var(--line2); position:sticky; top:0; background:var(--panel); }
+.pop .ph { padding:6px 11px 2px; font-size:10px; letter-spacing:0.8px; text-transform:uppercase; color:var(--faint); }
+.pop .pit { display:flex; align-items:center; gap:8px; width:100%; text-align:left; padding:6px 11px; border:0; background:none; cursor:pointer; font:inherit; font-size:12.5px; color:var(--ink); }
+.pop .pit:hover { background:var(--key-hover); }
+.pop .pit .cnt { margin-left:auto; color:var(--faint); font-size:11.5px; flex-shrink:0; }
+.pop .pnone { padding:10px 11px; color:var(--muted); font-size:12px; }
+.preview { display:flex; align-items:center; gap:8px; font-size:12.5px; padding:7px 10px; border-radius:5px; background:var(--acc-soft); color:var(--acc); }
+.preview.bad { background:transparent; border:1px solid var(--danger); color:var(--danger); }
+.preview .pdot { width:7px; height:7px; border-radius:50%; background:currentColor; flex-shrink:0; }
+.scb { display:inline-flex; align-items:center; gap:3px; color:var(--acc); font-family:"Cascadia Mono", Consolas, monospace; font-size:9.5px; font-weight:600; flex-shrink:0; }
+
 @media (max-width: 1000px) { .side { display:none; } .drawer { width:340px; } }
-@media (prefers-reduced-motion: reduce) { .toast { transition:none; } .key.term .c::after { animation:none; } .grpH .tools { transition:opacity 0s linear .3s, visibility 0s linear .3s; } }
+@media (prefers-reduced-motion: reduce) { .toast { transition:none; } .key.term .c::after { animation:none; } .grpH .tools { transition:none; } }
 </style>
 </head>
 <body>
@@ -132,18 +177,33 @@ textarea.in { min-height:64px; resize:vertical; }
     <button class="btn primary" id="saveBtn" onclick="save()" disabled>Save changes</button>
     <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importFileChosen(event)" />
   </div>
-  <div class="main">
+  <div class="main" id="mainRow">
     <div class="side" id="side"></div>
     <div class="deck" id="deck"></div>
+    <button class="rail" id="rail" tabindex="0" role="separator" aria-orientation="vertical" aria-label="Resize the editor panel" title="Drag to resize the editor · double-click to reset"></button>
     <div class="drawer hidden" id="drawer"></div>
   </div>
 </div>
+<div class="ovl" id="drawerOverlay"></div>
+<div class="ovl" id="scopeDlg"><div class="dlgPanel"><div class="drawerH"><span class="t" id="scopeDlgTitle"></span><span class="grow"></span><button class="btn quiet" title="Close" onclick="scopeCloseGroup()">✕</button></div><div id="scopeDlgBody"></div></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
 var config = {{{configJson}}};
 var defaults = {{{defaultsJson}}};
-var state = { filter: null, selected: null, dirty: false, saving: false };
+var targets = {{{targetsJson}}};
+if ((targets == null) || (typeof targets != 'object')) targets = {};
+if (!Array.isArray(targets.meshes)) targets.meshes = [];
+if (!Array.isArray(targets.nodes)) targets.nodes = [];
+var meshById = {}; targets.meshes.forEach(function (m) { meshById[m.id] = m; });
+var tagList = (function () {
+  var m = {};
+  targets.nodes.forEach(function (n) { (n.tags || []).forEach(function (t) { m[t] = (m[t] || 0) + 1; }); });
+  return Object.keys(m).sort().map(function (t) { return { name: t, count: m[t] }; });
+})();
+var state = { filter: null, selected: null, dirty: false, saving: false, scopeGroup: null };
+var ui = { center: false };
+try { ui.center = (localStorage.getItem('qc_drawer_mode') == 'center'); } catch (e) { }
 var SHELL_LABEL = { cmd: 'CMD', ps: 'PS', sh: 'SH', agent: 'AGENT' };
 var COLORS = ['red', 'orange', 'amber', 'green', 'teal', 'blue', 'purple', 'pink', 'slate'];
 var SHELL_NAME = { cmd: 'Command Prompt (cmd)', ps: 'PowerShell', sh: 'Shell (Linux, macOS, BSD)', agent: 'Agent console' };
@@ -165,6 +225,7 @@ function normalize() {
   if (!Array.isArray(config.commands)) config.commands = [];
   if (config.settings == null) config.settings = { terminalView: 'strip' };
   if ((config.groupColors == null) || (typeof config.groupColors != 'object')) config.groupColors = {};
+  if ((config.groupScopes == null) || (typeof config.groupScopes != 'object')) config.groupScopes = {};
   config.commands.forEach(function (c) { if (c.group && config.groups.indexOf(c.group) == -1) config.groups.push(c.group); });
 }
 // The command's own color wins over its group's color.
@@ -178,6 +239,206 @@ function swatches(current, fn, extraArg) {
 }
 function setGroupColor(g, col) { if (col) { config.groupColors[g] = col; } else { delete config.groupColors[g]; } markDirty(); render(); }
 function setCommandColor(col) { setField('color', col); }
+
+// ---- "Appears on" scoping ------------------------------------------------
+// One rule = { mode:'only'|'except', targets:[{t:'mesh'|'node'|'tag', id?, name?}] }.
+// A device passes when its group's rule AND the key's own rule let it through;
+// targets are a union, "except" inverts, an empty "only" matches nothing.
+var FUNNEL = '<svg viewBox="0 0 10 10" width="9" height="9" fill="currentColor" aria-hidden="true" style="flex-shrink:0"><path d="M0 0h10L6 5v4L4 10V5z"/></svg>';
+
+function scopePass(sc, nd) {
+  if ((sc == null) || ((sc.mode != 'only') && (sc.mode != 'except'))) return true;
+  var hit = false;
+  (sc.targets || []).some(function (t) {
+    if ((t.t == 'mesh') && (nd.meshid == t.id)) hit = true;
+    else if ((t.t == 'node') && (nd.id == t.id)) hit = true;
+    else if ((t.t == 'tag') && nd.tags && (nd.tags.indexOf(t.name) >= 0)) hit = true;
+    return hit;
+  });
+  return (sc.mode == 'only') ? hit : !hit;
+}
+function scopeCountFor(grpSc, cmdSc) {
+  var n = 0;
+  targets.nodes.forEach(function (nd) { if (scopePass(grpSc, nd) && scopePass(cmdSc, nd)) n++; });
+  return n;
+}
+function cmdScopeCount(c) { return scopeCountFor(c.group ? config.groupScopes[c.group] : null, c.scope); }
+function cmdIsScoped(c) { return (c.scope != null) || (c.group && (config.groupScopes[c.group] != null)); }
+
+// The rule being edited: the selected command's, or - while the group dialog
+// is open - the group's.
+function getScope() {
+  if (state.scopeGroup != null) return config.groupScopes[state.scopeGroup] || null;
+  var c = byId(state.selected); return c ? (c.scope || null) : null;
+}
+function setScopeObj(sc) {
+  if (state.scopeGroup != null) {
+    if (sc) { config.groupScopes[state.scopeGroup] = sc; } else { delete config.groupScopes[state.scopeGroup]; }
+  } else {
+    var c = byId(state.selected); if (c == null) return;
+    if (sc) { c.scope = sc; } else { delete c.scope; }
+  }
+  markDirty();
+}
+function scopeSetMode(m) {
+  var sc = getScope();
+  if (m == 'all') { setScopeObj(null); }
+  else { setScopeObj({ mode: m, targets: (sc && sc.targets) ? sc.targets : [] }); }
+  renderScopeUI();
+}
+function scopeRemove(i) {
+  var sc = getScope(); if (sc == null) return;
+  sc.targets.splice(i, 1); setScopeObj(sc); renderScopeUI();
+}
+function scopeAdd(kind, key) {
+  var sc = getScope(); if (sc == null) return;
+  var t = null;
+  if (kind == 'mesh') { var m = meshById[key]; t = { t: 'mesh', id: key, name: m ? m.name : key }; }
+  else if (kind == 'node') { var nd = null; targets.nodes.some(function (n) { if (n.id == key) { nd = n; return true; } return false; }); t = { t: 'node', id: key, name: nd ? nd.name : key }; }
+  else { t = { t: 'tag', name: key }; }
+  var dup = sc.targets.some(function (x) { return (x.t == t.t) && ((x.t == 'tag') ? (x.name == t.name) : (x.id == t.id)); });
+  if (!dup) { sc.targets.push(t); setScopeObj(sc); }
+  renderScopeUI();
+}
+function scopeHas(sc, kind, key) {
+  return (sc.targets || []).some(function (x) { return (x.t == kind) && ((kind == 'tag') ? (x.name == key) : (x.id == key)); });
+}
+function scopeChipHtml(t, i) {
+  var kind = (t.t == 'mesh') ? 'GROUP' : (t.t == 'node') ? 'DEVICE' : 'TAG';
+  var missing = false, label = t.name || t.id, extra = '';
+  if (t.t == 'mesh') {
+    var m = meshById[t.id];
+    if (m) { label = m.name; extra = ' · ' + m.count; } else { missing = true; label = (t.name || t.id) + ' (deleted)'; }
+  } else if (t.t == 'node') {
+    var found = targets.nodes.some(function (n) { return n.id == t.id; });
+    if (!found) { missing = true; label = (t.name || t.id) + ' (deleted)'; }
+  }
+  return '<span class="chip' + (missing ? ' miss" title="This target no longer exists and matches nothing.' : '') + '"><span class="k">' + kind + '</span>' + esc(label) + esc(extra)
+    + '<button type="button" title="Remove" onclick="scopeRemove(' + i + ')">✕</button></span>';
+}
+function scopeEditorHtml(isGroup) {
+  var sc = getScope();
+  var mode = (sc && ((sc.mode == 'only') || (sc.mode == 'except'))) ? sc.mode : 'all';
+  var seg = function (v, l) { return '<button type="button" class="' + (mode == v ? 'on' : '') + '" onclick="scopeSetMode(\'' + v + '\')">' + l + '</button>'; };
+  var h = '<div class="field"><label>Appears on</label><div class="seg">' + seg('all', 'All devices') + seg('only', 'Only these…') + seg('except', 'All except…') + '</div>';
+  if (mode != 'all') {
+    h += '<div class="scopebox"><div class="chips">';
+    var ts = sc.targets || [];
+    ts.forEach(function (t, i) { h += scopeChipHtml(t, i); });
+    if (ts.length == 0) h += '<span class="chip miss">⚠ No targets yet</span>';
+    h += '</div><div class="addt"><button type="button" class="btn" onclick="scopePopToggle(event)">+ Add device group, tag or device</button><div class="pop" id="scopePop" onclick="event.stopPropagation()"></div></div>';
+    h += '<span class="hint">Targets combine as a union. ' + (isGroup
+      ? 'Every key in this group inherits the rule; a key’s own rule can only narrow it further.'
+      : 'The group’s rule and this rule must both let a device through.')
+      + ' Scoping only hides keys - running still checks MeshCentral’s permissions.</span></div>';
+  }
+  var total = targets.nodes.length;
+  if (total > 0) {
+    var grpSc = null, cmdSc = null;
+    if (state.scopeGroup != null) { grpSc = config.groupScopes[state.scopeGroup]; }
+    else { var c = byId(state.selected); if (c) { cmdSc = c.scope; grpSc = c.group ? config.groupScopes[c.group] : null; } }
+    var eff = scopeCountFor(grpSc, cmdSc);
+    var bad = (eff == 0);
+    var msg = bad
+      ? ((mode == 'only' && (!sc || !(sc.targets || []).length)) ? 'Appears on <b>no devices</b> - add at least one target.' : 'Appears on <b>no devices</b>.')
+      : ('Appears on <b>' + eff + ' of ' + total + '</b> device' + (total == 1 ? '' : 's') + '.');
+    h += '<div class="preview' + (bad ? ' bad' : '') + '"><span class="pdot"></span><span>' + msg + '</span></div>';
+  }
+  return h + '</div>';
+}
+function scopePopToggle(ev) {
+  if (ev && ev.stopPropagation) ev.stopPropagation();
+  var p = document.getElementById('scopePop'); if (p == null) return;
+  if (p.classList.contains('open')) { p.classList.remove('open'); return; }
+  scopePopRender('');
+  p.classList.add('open');
+  var s = document.getElementById('scopePopSearch'); if (s) s.focus();
+}
+function scopePopRender(q) {
+  var p = document.getElementById('scopePop'); if (p == null) return;
+  var sc = getScope() || { targets: [] };
+  q = (q || '').toLowerCase();
+  var h = '<div class="psearch"><input class="in" id="scopePopSearch" placeholder="Search device groups, tags, devices…" oninput="scopePopRender(this.value)" /></div>';
+  var any = false;
+  var ms = targets.meshes.filter(function (m) { return !scopeHas(sc, 'mesh', m.id) && (m.name.toLowerCase().indexOf(q) >= 0); });
+  if (ms.length) {
+    any = true; h += '<div class="ph">Device groups</div>';
+    ms.forEach(function (m) { h += '<button type="button" class="pit" onclick="scopeAdd(\'mesh\',' + JSON.stringify(m.id).replace(/"/g, '&quot;') + ')"><span class="gdot" style="background:var(--ps)"></span>' + esc(m.name) + '<span class="cnt">' + m.count + ' device' + (m.count == 1 ? '' : 's') + '</span></button>'; });
+  }
+  var tg = tagList.filter(function (t) { return !scopeHas(sc, 'tag', t.name) && (t.name.toLowerCase().indexOf(q) >= 0); });
+  if (tg.length) {
+    any = true; h += '<div class="ph">Tags</div>';
+    tg.forEach(function (t) { h += '<button type="button" class="pit" onclick="scopeAdd(\'tag\',' + JSON.stringify(t.name).replace(/"/g, '&quot;') + ')"><span class="gdot" style="background:var(--sh)"></span>' + esc(t.name) + '<span class="cnt">' + t.count + ' device' + (t.count == 1 ? '' : 's') + '</span></button>'; });
+  }
+  var nd = targets.nodes.filter(function (n) { return !scopeHas(sc, 'node', n.id) && (String(n.name).toLowerCase().indexOf(q) >= 0); });
+  if (nd.length) {
+    any = true; h += '<div class="ph">Devices</div>';
+    nd.slice(0, 50).forEach(function (n) {
+      var m = meshById[n.meshid];
+      h += '<button type="button" class="pit" onclick="scopeAdd(\'node\',' + JSON.stringify(n.id).replace(/"/g, '&quot;') + ')"><span class="gdot" style="background:var(--cmd)"></span>' + esc(n.name) + '<span class="cnt">' + esc(m ? m.name : '') + '</span></button>';
+    });
+    if (nd.length > 50) h += '<div class="pnone">' + (nd.length - 50) + ' more - type to narrow the list.</div>';
+  }
+  if (!any) h += '<div class="pnone">' + (targets.nodes.length == 0 ? 'No agent devices found yet.' : ('Nothing matches "' + esc(q) + '".')) + '</div>';
+  p.innerHTML = h;
+  var s = document.getElementById('scopePopSearch');
+  if (s) { s.value = q; s.focus(); try { s.setSelectionRange(q.length, q.length); } catch (e) { } }
+}
+function renderScopeUI() {
+  if (state.scopeGroup != null) {
+    document.getElementById('scopeDlgBody').innerHTML = scopeEditorHtml(true);
+    renderDeck();
+  } else { renderDrawer(); renderDeck(); }
+}
+function scopeOpenGroup(g) {
+  state.scopeGroup = g;
+  document.getElementById('scopeDlgTitle').textContent = 'Where "' + g + '" appears';
+  document.getElementById('scopeDlgBody').innerHTML = scopeEditorHtml(true);
+  document.getElementById('scopeDlg').classList.add('open');
+}
+function scopeCloseGroup() {
+  state.scopeGroup = null;
+  document.getElementById('scopeDlg').classList.remove('open');
+  render();
+}
+
+// ---- editor panel: drag width, centered mode, growing command box --------
+function clampW(w) { var max = Math.max(320, Math.round(window.innerWidth * 0.7)); return Math.max(320, Math.min(max, Math.round(w))); }
+function setDrawerW(w, persist) {
+  var d = document.getElementById('drawer'); w = clampW(w);
+  d.style.width = w + 'px';
+  if (persist) { try { localStorage.setItem('qc_drawer_w', String(w)); } catch (e) { } }
+}
+function toggleCenter() {
+  ui.center = !ui.center;
+  try { localStorage.setItem('qc_drawer_mode', ui.center ? 'center' : 'side'); } catch (e) { }
+  renderDrawer();
+}
+function placeDrawer() {
+  var d = document.getElementById('drawer'), rail = document.getElementById('rail'), ov = document.getElementById('drawerOverlay'), main = document.getElementById('mainRow');
+  var open = (state.selected != null) && (byId(state.selected) != null);
+  if (open && ui.center) {
+    if (d.parentNode !== ov) { d.dataset.w = d.style.width || ''; d.style.width = ''; ov.appendChild(d); }
+    ov.classList.add('open');
+    rail.classList.remove('show');
+  } else {
+    if (d.parentNode === ov) { d.style.width = d.dataset.w || ''; main.appendChild(d); }
+    ov.classList.remove('open');
+    rail.classList.toggle('show', open);
+  }
+}
+function syncCmd() {
+  var ta = document.getElementById('fCmd'); if (ta == null) return;
+  var wrap = ta.parentNode, gut = wrap.querySelector('.gut');
+  ta.style.height = 'auto';
+  var max = Math.round(window.innerHeight * 0.4);
+  var h = Math.min(Math.max(ta.scrollHeight + 2, 64), max);
+  ta.style.height = h + 'px';
+  ta.style.overflowY = (ta.scrollHeight > max + 2) ? 'auto' : 'hidden';
+  var lines = ta.value.split('\n').length;
+  wrap.classList.toggle('gutter', lines > 3);
+  if (lines > 3) { var s = ''; for (var i = 1; i <= lines; i++) s += i + '\n'; gut.textContent = s; gut.scrollTop = ta.scrollTop; }
+}
 function markDirty() { state.dirty = true; renderDirty(); }
 function renderDirty() {
   var d = document.getElementById('dirty'), b = document.getElementById('saveBtn');
@@ -220,8 +481,13 @@ function renderSide() {
 function keyHtml(c) {
   var col = colorOf(c);
   var cls = 'key' + (c.confirm ? ' danger' : '') + (c.mode == 'terminal' ? ' term' : '') + (state.selected == c.id ? ' sel' : '') + (col ? ' qcc-' + col : '');
+  var scb = '';
+  if (cmdIsScoped(c) && targets.nodes.length) {
+    var n = cmdScopeCount(c);
+    scb = '<span class="scb" title="Appears on ' + n + ' of ' + targets.nodes.length + ' devices">' + FUNNEL + n + '</span>';
+  }
   return '<button class="' + cls + '" draggable="true" data-id="' + esc(c.id) + '" onclick="select(\'' + esc(c.id) + '\')" ondragstart="dragStart(event)" ondragend="dragEnd(event)" title="' + esc(c.command) + '">'
-    + '<span class="n"><span class="tag ' + c.shell + '">' + SHELL_LABEL[c.shell] + '</span>' + (c.mode == 'terminal' ? '<span class="tag term" title="Typed into the terminal">&gt;_</span>' : '') + '<span class="name">' + esc(c.name) + '</span><span class="where"><i class="' + (c.showTerminal !== false ? '' : 'off') + '" title="Terminal tab">T</i><i class="' + (c.showGeneral ? '' : 'off') + '" title="General tab">G</i></span></span>'
+    + '<span class="n"><span class="tag ' + c.shell + '">' + SHELL_LABEL[c.shell] + '</span>' + (c.mode == 'terminal' ? '<span class="tag term" title="Typed into the terminal">&gt;_</span>' : '') + '<span class="name">' + esc(c.name) + '</span>' + scb + '<span class="where"><i class="' + (c.showTerminal !== false ? '' : 'off') + '" title="Terminal tab">T</i><i class="' + (c.showGeneral ? '' : 'off') + '" title="General tab">G</i></span></span>'
     + '<span class="c">' + esc(c.command.split(/\r?\n/)[0]) + '</span></button>';
 }
 
@@ -235,9 +501,14 @@ function renderDeck() {
     var gname = g.name;
     var q = JSON.stringify(gname).replace(/"/g, '&quot;');
     var gcol = gname ? (config.groupColors[gname] || '') : '';
-    x += '<div class="grp"><div class="grpH">' + (gcol ? '<span class="gdot qcc-' + gcol + '"></span>' : '') + '<b>' + (gname ? esc(gname) : '<i>No group</i>') + '</b><span class="sub">' + g.commands.length + '</span>';
-    if (gname) x += '<span class="tools">' + swatches(gcol, 'setGroupColor', q) + '<button class="btn quiet" onclick="renameGroup(' + q + ')">Rename</button><button class="btn quiet" onclick="moveGroup(' + q + ',-1)">Up</button><button class="btn quiet" onclick="moveGroup(' + q + ',1)">Down</button><button class="btn quiet danger" onclick="deleteGroup(' + q + ')">Delete group</button></span>';
-    if (gi == 0 && config.commands.length > 0) x += '<span class="grow"></span><span class="sub">Drag keys to reorder or move them between groups. This order is what devices show.</span>';
+    var gscope = '';
+    if (gname && (config.groupScopes[gname] != null) && targets.nodes.length) {
+      var gn = scopeCountFor(config.groupScopes[gname], null);
+      gscope = '<span class="scb" title="Group rule: appears on ' + gn + ' of ' + targets.nodes.length + ' devices">' + FUNNEL + gn + '</span>';
+    }
+    x += '<div class="grp"><div class="grpH">' + (gcol ? '<span class="gdot qcc-' + gcol + '"></span>' : '') + '<b>' + (gname ? esc(gname) : '<i>No group</i>') + '</b><span class="sub">' + g.commands.length + '</span>' + gscope;
+    if (gname) x += '<span class="tools">' + swatches(gcol, 'setGroupColor', q) + '<button class="btn quiet" onclick="renameGroup(' + q + ')">Rename</button><button class="btn quiet" onclick="scopeOpenGroup(' + q + ')">Scope…</button><button class="btn quiet" onclick="moveGroup(' + q + ',-1)">Up</button><button class="btn quiet" onclick="moveGroup(' + q + ',1)">Down</button><button class="btn quiet danger" onclick="deleteGroup(' + q + ')">Delete group</button></span>';
+    if (gi == 0 && config.commands.length > 0) x += '<span class="grow"></span><span class="sub dragHint">Drag keys to reorder or move them between groups. This order is what devices show.</span>';
     x += '</div><div class="keys" data-group="' + esc(gname) + '" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">';
     g.commands.forEach(function (c) { x += keyHtml(c); });
     x += '<button class="key ghost" onclick="addCommand(' + q + ')">+ Add' + (gname ? ' to ' + esc(gname) : ' a command') + '</button></div></div>';
@@ -248,7 +519,7 @@ function renderDeck() {
 function renderDrawer() {
   var d = document.getElementById('drawer');
   var c = state.selected ? byId(state.selected) : null;
-  if (c == null) { d.className = 'drawer hidden'; d.innerHTML = ''; return; }
+  if (c == null) { d.className = 'drawer hidden'; d.innerHTML = ''; placeDrawer(); return; }
   d.className = 'drawer';
   var seg = function (field, options) {
     var h = '<div class="seg">';
@@ -257,21 +528,24 @@ function renderDrawer() {
   };
   var groupOpts = '<option value="">No group</option>';
   config.groups.forEach(function (g) { groupOpts += '<option value="' + esc(g) + '"' + (c.group == g ? ' selected' : '') + '>' + esc(g) + '</option>'; });
-  var x = '<div class="drawerH"><span class="t">' + esc(c.name) + '</span><span class="grow"></span><button class="btn quiet" onclick="duplicateCommand()">Duplicate</button><button class="btn quiet danger" onclick="deleteCommand()">Delete</button><button class="btn quiet" title="Close" onclick="select(null)">✕</button></div>';
+  var x = '<div class="drawerH"><span class="t">' + esc(c.name) + '</span><span class="grow"></span><button class="btn quiet" onclick="duplicateCommand()">Duplicate</button><button class="btn quiet danger" onclick="deleteCommand()">Delete</button><button class="btn quiet" title="' + (ui.center ? 'Back to the side panel' : 'Open as a centered dialog') + '" onclick="toggleCenter()">' + (ui.center ? '⤡' : '⤢') + '</button><button class="btn quiet" title="Close" onclick="select(null)">✕</button></div>';
   x += '<div class="field"><label for="fName">Name on the key</label><input class="in" id="fName" value="' + esc(c.name) + '" oninput="setField(\'name\', this.value, true)" maxlength="80" /></div>';
   x += '<div class="field"><label>Shell</label>' + seg('shell', [{ v: 'cmd', l: 'CMD' }, { v: 'ps', l: 'PowerShell' }, { v: 'sh', l: 'Linux / macOS' }, { v: 'agent', l: 'Agent console' }]) + '<span class="hint">' + (c.shell == 'sh' ? 'Shown on non-Windows devices only.' : (c.shell == 'agent' ? 'Runs built-in agent commands (netinfo, ps, …). Shown on every device.' : 'Shown on Windows devices only.')) + '</span></div>';
-  x += '<div class="field"><label for="fCmd">Command</label><textarea class="in mono" id="fCmd" oninput="setField(\'command\', this.value, true)" spellcheck="false">' + esc(c.command) + '</textarea><span class="hint">' + (c.mode == 'terminal' ? 'Typed line by line, each followed by Enter.' : 'Several lines run one after another in one shell.') + '</span></div>';
+  x += '<div class="field"><label for="fCmd">Command</label><div class="cmdwrap"><div class="gut" aria-hidden="true"></div><textarea id="fCmd" wrap="off" spellcheck="false" oninput="setField(\'command\', this.value, true); syncCmd();" onscroll="var g=this.parentNode.querySelector(\'.gut\'); if(g) g.scrollTop=this.scrollTop;">' + esc(c.command) + '</textarea></div><span class="hint">' + (c.mode == 'terminal' ? 'Typed line by line, each followed by Enter.' : 'Several lines run one after another in one shell.') + '</span></div>';
   x += '<div class="field"><label>How it runs</label>' + seg('mode', [{ v: 'run', l: 'Run, show output' }, { v: 'terminal', l: 'Type into terminal' }]) + '<span class="hint">' + (c.mode == 'terminal' ? 'Opens the Terminal tab, connects if needed, and types the command so you can answer prompts.' : 'Runs in the background; the output opens in a window when it is done.') + '</span></div>';
   if (c.mode == 'run' && c.shell != 'agent') {
     x += '<div class="field"><label>Run as</label>' + seg('runAs', [{ v: 0, l: 'Agent (SYSTEM/root)' }, { v: 1, l: 'User if signed in' }, { v: 2, l: 'User only' }]) + '</div>';
   }
   if (c.mode == 'terminal' && c.shell == 'agent') { x += '<div class="warn">Agent console commands cannot be typed into a terminal. Switch to "Run, show output".</div>'; }
   x += '<div class="field"><label>Show on</label><div class="row"><label class="chk"><input type="checkbox" ' + (c.showTerminal !== false ? 'checked' : '') + ' onchange="setField(\'showTerminal\', this.checked)" /> Terminal tab</label><label class="chk"><input type="checkbox" ' + (c.showGeneral ? 'checked' : '') + ' onchange="setField(\'showGeneral\', this.checked)" /> General tab</label></div><span class="hint">The device\'s Plugins tab always lists every command.</span></div>';
+  x += scopeEditorHtml(false);
   x += '<label class="chk"><input type="checkbox" ' + (c.confirm ? 'checked' : '') + ' onchange="setField(\'confirm\', this.checked)" /> Ask before running</label>';
   x += '<div class="field"><label for="fGroup">Group</label><select class="in" id="fGroup" onchange="setField(\'group\', this.value)">' + groupOpts + '</select></div>';
   x += '<div class="field"><label>Color of the key</label>' + swatches(c.color || '', 'setCommandColor', null) + '<span class="hint">' + (c.color ? 'Shown as a colored edge on the key.' : (config.groupColors[c.group] ? 'Without its own color, the key uses the group’s color (' + esc(config.groupColors[c.group]) + ').' : 'Shown as a colored edge on the key. Whole groups can be colored on their heading.')) + '</span></div>';
   x += '<div class="field"><label for="fDesc">Hint (shown when hovering the key)</label><input class="in" id="fDesc" value="' + esc(c.description || '') + '" oninput="setField(\'description\', this.value, true)" maxlength="300" /></div>';
   d.innerHTML = x;
+  syncCmd();
+  placeDrawer();
 }
 
 // ---- actions ----
@@ -312,6 +586,7 @@ function renameGroup(g) {
   if (!name || name == g || config.groups.indexOf(name) >= 0) return;
   config.groups[config.groups.indexOf(g)] = name;
   if (config.groupColors[g] != null) { config.groupColors[name] = config.groupColors[g]; delete config.groupColors[g]; }
+  if (config.groupScopes[g] != null) { config.groupScopes[name] = config.groupScopes[g]; delete config.groupScopes[g]; }
   config.commands.forEach(function (c) { if (c.group == g) c.group = name; });
   if (state.filter == g) state.filter = name;
   markDirty(); render();
@@ -325,6 +600,7 @@ function deleteGroup(g) {
   if (!confirm('Delete group "' + g + '"?' + (n ? ' Its ' + n + ' command(s) are kept without a group.' : ''))) return;
   config.groups.splice(config.groups.indexOf(g), 1);
   delete config.groupColors[g];
+  delete config.groupScopes[g];
   config.commands.forEach(function (c) { if (c.group == g) c.group = ''; });
   if (state.filter == g) state.filter = null;
   markDirty(); render();
@@ -397,7 +673,50 @@ function importFileChosen(e) {
   r.readAsText(f);
 }
 document.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() == 's') { e.preventDefault(); if (state.dirty) save(); } });
+document.addEventListener('keydown', function (e) {
+  if (e.key != 'Escape') return;
+  var p = document.getElementById('scopePop');
+  if (p && p.classList.contains('open')) { p.classList.remove('open'); return; }
+  if (state.scopeGroup != null) { scopeCloseGroup(); }
+});
+// A click outside the target picker closes it.
+document.addEventListener('click', function (e) {
+  var p = document.getElementById('scopePop');
+  if (p && p.classList.contains('open') && !(e.target.closest && e.target.closest('.addt'))) { p.classList.remove('open'); }
+});
 window.addEventListener('beforeunload', function (e) { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+// ---- drag rail: resize the drawer, remember the width -----------------
+(function () {
+  var rail = document.getElementById('rail');
+  try { var s = parseInt(localStorage.getItem('qc_drawer_w'), 10); if (s) setDrawerW(s, false); } catch (e) { }
+  var dragging = false;
+  rail.addEventListener('pointerdown', function (e) { dragging = true; rail.classList.add('on'); rail.setPointerCapture(e.pointerId); e.preventDefault(); });
+  rail.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    var r = document.getElementById('mainRow').getBoundingClientRect();
+    setDrawerW(r.right - e.clientX, false);
+  });
+  rail.addEventListener('pointerup', function (e) {
+    if (!dragging) return;
+    dragging = false; rail.classList.remove('on');
+    var d = document.getElementById('drawer');
+    setDrawerW(parseInt(d.style.width, 10) || 400, true);
+  });
+  rail.addEventListener('dblclick', function () { setDrawerW(400, true); });
+  rail.addEventListener('keydown', function (e) {
+    var d = document.getElementById('drawer'), w = parseInt(d.style.width, 10) || 400;
+    if (e.key == 'ArrowLeft') { setDrawerW(w + 16, true); e.preventDefault(); }
+    if (e.key == 'ArrowRight') { setDrawerW(w - 16, true); e.preventDefault(); }
+  });
+  window.addEventListener('resize', function () {
+    var d = document.getElementById('drawer'), w = parseInt(d.style.width, 10);
+    if (w) setDrawerW(w, false);
+  });
+  // Clicking the dimmed backdrop of the centered editor returns it to the side.
+  document.getElementById('drawerOverlay').addEventListener('click', function (e) { if (e.target === this) toggleCenter(); });
+  document.getElementById('scopeDlg').addEventListener('click', function (e) { if (e.target === this) scopeCloseGroup(); });
+})();
 
 render();
 </script>

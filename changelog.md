@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.3.0
+
+- **Scoping — "Appears on"**: every command, and every group, can now be
+  limited to specific devices: *All devices* (default), *Only these…* or
+  *All except…*, with device groups, tags and single devices as targets.
+  Targets combine as a union; a device must pass the group's rule **and**
+  the key's rule, so a key can narrow its group's reach but never widen it.
+  An empty *Only these…* matches **no** devices (never everyone). While
+  editing, a live preview shows *"Appears on 37 of 112 devices"*; scoped
+  keys and groups carry a small funnel badge with that count. A deleted
+  target shows as a warning chip and matches nothing. Scoping only hides
+  keys — running still goes through MeshCentral's normal permissions.
+  Group rules live under the new **Scope…** tool on the group heading.
+- **Keyword filter** on the Terminal strip, the Terminal menu and the
+  General panel, shown once a device has 10 or more keys. Case-insensitive
+  match over name, command and group with the hit highlighted in place;
+  group chips stay; empty groups disappear. **/** jumps into the filter
+  (never while a terminal is connected or while typing elsewhere), **Esc**
+  clears then leaves, **Enter** runs the single remaining key. In the menu
+  the filter sits pinned at the top, is focused when the menu opens, and
+  **↑/↓ + Enter** pick a command without touching the mouse. The filter is
+  never persisted — keys can't go missing mysteriously tomorrow.
+- **Roomier editor**: the add/edit panel has a drag rail (320 px – 70 % of
+  the window, double-click resets, arrow keys nudge) and remembers its
+  width per browser. **⤢** opens the same form as a large centered dialog,
+  **⤡** puts it back — the last-used mode is remembered too. The command
+  box is monospace with soft-wrap off, grows with the script up to ~40 %
+  of the window, and shows line numbers from the fourth line on.
+- Fixed: 0.2.4 made the group heading reserve space for its tools, which
+  wrapped the first group's header onto two lines. The tools take no space
+  again; the fade in/out and the grace period before they disappear stay
+  (via a CSS display transition; older browsers get the pre-0.2.4 instant
+  toggle).
+
 ## 0.2.4
 
 - The group tools in the editor (color swatches, Rename, Up, Down, Delete
