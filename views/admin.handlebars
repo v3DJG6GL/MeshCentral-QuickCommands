@@ -55,8 +55,8 @@ button, input, select, textarea { font:inherit; color:inherit; }
 .grp { display:flex; flex-direction:column; gap:10px; }
 .grpH { display:flex; align-items:center; gap:10px; }
 .grpH b { font-weight:600; }
-.grpH .tools { display:none; gap:4px; }
-.grpH:hover .tools { display:flex; }
+.grpH .tools { display:flex; gap:4px; opacity:0; visibility:hidden; transition:opacity .18s ease .3s, visibility 0s linear .48s; }
+.grpH:hover .tools, .grpH:focus-within .tools { opacity:1; visibility:visible; transition-delay:0s, 0s; }
 .keys { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-start; min-height:44px; }
 .keys.over { outline:2px dashed var(--acc); outline-offset:4px; border-radius:4px; }
 
@@ -114,7 +114,7 @@ textarea.in { min-height:64px; resize:vertical; }
 .toast { position:fixed; left:50%; bottom:18px; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:8px 14px; border-radius:4px; font-size:12px; opacity:0; transition:opacity .2s; pointer-events:none; }
 .toast.show { opacity:1; }
 @media (max-width: 1000px) { .side { display:none; } .drawer { width:340px; } }
-@media (prefers-reduced-motion: reduce) { .toast { transition:none; } .key.term .c::after { animation:none; } }
+@media (prefers-reduced-motion: reduce) { .toast { transition:none; } .key.term .c::after { animation:none; } .grpH .tools { transition:opacity 0s linear .3s, visibility 0s linear .3s; } }
 </style>
 </head>
 <body>

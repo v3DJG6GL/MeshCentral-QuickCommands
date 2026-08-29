@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4
+
+- The group tools in the editor (color swatches, Rename, Up, Down, Delete
+  group) no longer pop in and out abruptly: they fade in on hover, stay for a
+  short grace period after the cursor leaves before fading out, and remain
+  visible while one of their buttons has focus. The group header also no
+  longer changes width on hover.
+
 ## 0.2.3
 
 - Fixed: a **multi-line PowerShell command** could run forever with no output.
