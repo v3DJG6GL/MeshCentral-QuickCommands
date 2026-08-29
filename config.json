@@ -1,7 +1,7 @@
 {
   "name": "Quick Commands",
   "shortName": "quickcommands",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "One-click buttons for the commands you type again and again (ipconfig /all, gpupdate /force, ...), on the Terminal and General tabs of every device. Commands are managed in a visual editor under My Server > Plugins.",
   "hasAdminPanel": true,
   "homepage": "https://github.com/v3DJG6GL/MeshCentral-QuickCommands",

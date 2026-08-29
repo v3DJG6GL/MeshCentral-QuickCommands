@@ -101,14 +101,17 @@ module.exports.quickcommands = function (parent) {
         'qcFiltered',
         'qcSetFilter',
         'qcClearFilter',
-        'qcFilterKey'
+        'qcFilterKey',
+        'qcGroupSel',
+        'qcToggleGroup',
+        'qcChipsHtml'
     ];
 
     // Shared per-page state bag.
     obj.qcState = function () {
         var Q = pluginHandler.quickcommands;
         if (Q._st == null) {
-            Q._st = { config: null, canManage: false, pending: {}, log: [], menuOpen: false, hooked: false, nodeid: null, mdInit: false, cfgReq: false, cxNodeid: null, picker: null, bulk: null, tFilter: '', gFilter: '', mFilter: '', mActive: -1 };
+            Q._st = { config: null, canManage: false, pending: {}, log: [], menuOpen: false, hooked: false, nodeid: null, mdInit: false, cfgReq: false, cxNodeid: null, picker: null, bulk: null, tFilter: '', gFilter: '', mFilter: '', mActive: -1, tGroups: {}, gGroups: {}, mGroups: {} };
             // The run log survives a page reload (per browser tab). Runs that were
             // still going when the page reloaded cannot be picked up again - the
             // responseid is gone - so they are closed with a note.
@@ -245,6 +248,16 @@ module.exports.quickcommands = function (parent) {
 .qcFclr { position:absolute; right:6px; cursor:pointer; color:#7a8489; font-size:11px; line-height:1; }
 .qcFclr:hover { color:#1a1a1a; } .night .qcFclr:hover { color:#fff; }
 .qcEmptyF { font-size:12px; color:#5a6368; padding:2px 4px; } .night .qcEmptyF { color:#8b9591; }
+.qcChipsF { display:inline-flex; gap:4px; flex-wrap:wrap; align-items:center; margin:0 4px; }
+.qcMenuS .qcChipsF { display:flex; margin:6px 0 0; }
+.qcGchip { display:inline-flex; align-items:center; gap:4px; padding:1px 9px 2px; border:1px solid #b9c2bf; border-radius:11px; background:#fff; color:#5a6368; font-family:inherit; font-size:11px; font-weight:normal; cursor:pointer; line-height:14px; }
+.qcGchip:hover { background:#f4f8f7; color:#1a1a1a; }
+.qcGchip.on { background:#E6EDFB; border-color:#1E6BD6; color:#1E6BD6; font-weight:bold; }
+.qcGchip:focus-visible { outline:2px solid #1E6BD6; outline-offset:1px; }
+.qcGchip .qcDot { margin-right:0; }
+.night .qcGchip { background:#141a19; border-color:#3a4442; color:#b8c2bd; }
+.night .qcGchip:hover { background:#1d2422; color:#fff; }
+.night .qcGchip.on { background:#1D2A44; border-color:#6ea8ff; color:#6ea8ff; }
 .qcMk { background:transparent; color:inherit; border-bottom:2px solid #1E6BD6; font-weight:bold; padding:0; }
 .night .qcMk { border-bottom-color:#6ea8ff; }
 .qcKey.termMode .qcC .qcMk { color:#8fd8ae; border-bottom-color:#8fd8ae; }
@@ -396,10 +409,45 @@ module.exports.quickcommands = function (parent) {
         return Q.qcEsc(s.substring(0, i)) + '<mark class="qcMk">' + Q.qcEsc(s.substr(i, q.length)) + '</mark>' + Q.qcEsc(s.substring(i + q.length));
     };
 
-    // Visible commands for a surface after the keyword filter, in display order.
-    obj.qcFiltered = function (where, q) {
+    // Selected group chips for a surface ('t' strip, 'm' menu, 'g' general) as a
+    // map name -> true; an empty map means every group.
+    obj.qcGroupSel = function (kind) {
+        var st = pluginHandler.quickcommands.qcState();
+        return (kind == 't') ? st.tGroups : (kind == 'g') ? st.gGroups : st.mGroups;
+    };
+    obj.qcToggleGroup = function (kind, name) {
+        var Q = pluginHandler.quickcommands, st = Q.qcState();
+        var sel = Q.qcGroupSel(kind);
+        if (sel[name]) { delete sel[name]; } else { sel[name] = true; }
+        if (kind == 'm') st.mActive = st.mFilter ? 0 : -1;
+        var q = (kind == 't') ? st.tFilter : (kind == 'g') ? st.gFilter : st.mFilter;
+        return Q.qcSetFilter(kind, q || '');
+    };
+    // Group chips: the chip picks the haystack, the text narrows it. Shown from
+    // 2 groups on. Chips show every group of the surface, not only the matches,
+    // so a chip can always be switched off again.
+    obj.qcChipsHtml = function (kind, cmds) {
+        var Q = pluginHandler.quickcommands, st = Q.qcState();
+        var groups = Q.qcGroupsFor(cmds).filter(function (g) { return g.name; });
+        if (groups.length < 2) return '';
+        var sel = Q.qcGroupSel(kind), x = '<span class="qcChipsF">';
+        groups.forEach(function (g) {
+            var gcol = st.config.groupColors ? st.config.groupColors[g.name] : null;
+            x += '<button type="button" class="qcGchip' + (sel[g.name] ? ' on' : '') + (gcol ? ' qcc-' + gcol : '') + '" title="' + (sel[g.name] ? 'Show all groups' : 'Only this group') + '" onclick="event.stopPropagation(); return pluginHandler.quickcommands.qcToggleGroup(\'' + kind + '\',\'' + Q.qcEsc(g.name).replace(/'/g, '\\\'') + '\')">'
+                + (gcol ? '<span class="qcDot"></span>' : '') + Q.qcEsc(g.name) + '</button>';
+        });
+        return x + '</span>';
+    };
+
+    // Visible commands for a surface after chips + keyword filter, in display order.
+    obj.qcFiltered = function (where, q, kind) {
         var Q = pluginHandler.quickcommands;
-        var cmds = Q.qcVisible(where).filter(function (c) { return Q.qcFilterMatch(c, q); });
+        var sel = kind ? Q.qcGroupSel(kind) : {}, any = false;
+        for (var k in sel) { any = true; }
+        var cmds = Q.qcVisible(where).filter(function (c) {
+            if (any && !sel[c.group || '']) return false;
+            return Q.qcFilterMatch(c, q);
+        });
         var out = [];
         Q.qcGroupsFor(cmds).forEach(function (g) { g.commands.forEach(function (c) { out.push(c); }); });
         return out;
@@ -484,16 +532,21 @@ module.exports.quickcommands = function (parent) {
                 host.parentNode.insertBefore(wrap, host);
             }
             var q = canFilter ? (st.mFilter || '') : '';
-            var shown = cmds.filter(function (c) { return Q.qcFilterMatch(c, q); });
+            var chips = Q.qcChipsHtml('m', cmds);
+            var shown = Q.qcFiltered('terminal', q, chips ? 'm' : null);
             var groups = Q.qcGroupsFor(shown);
             var x = '<input type="button" value="Quick commands ▾" onclick="return pluginHandler.quickcommands.qcToggleMenu(event)" onkeypress="return false" onkeydown="return false" />';
             x += '<div class="qcMenu" id="qcTermMenu" style="display:' + (st.menuOpen ? '' : 'none') + '">';
-            if (canFilter) {
-                x += '<div class="qcMenuS"><span class="qcFwrap"><input type="text" id="qcMenuFilter" class="qcFin" placeholder="Filter commands" autocomplete="off" value="' + Q.qcEsc(q) + '" oninput="return pluginHandler.quickcommands.qcSetFilter(\'m\', this.value)" onkeydown="return pluginHandler.quickcommands.qcFilterKey(event, \'m\')" />'
-                    + (q ? '<span class="qcFclr" title="Clear filter" onclick="return pluginHandler.quickcommands.qcClearFilter(\'m\')">✕</span>' : '') + '</span></div>';
+            if (canFilter || chips) {
+                x += '<div class="qcMenuS">';
+                if (canFilter) {
+                    x += '<span class="qcFwrap"><input type="text" id="qcMenuFilter" class="qcFin" placeholder="Filter commands" autocomplete="off" value="' + Q.qcEsc(q) + '" oninput="return pluginHandler.quickcommands.qcSetFilter(\'m\', this.value)" onkeydown="return pluginHandler.quickcommands.qcFilterKey(event, \'m\')" />'
+                        + (q ? '<span class="qcFclr" title="Clear filter" onclick="return pluginHandler.quickcommands.qcClearFilter(\'m\')">✕</span>' : '') + '</span>';
+                }
+                x += chips + '</div>';
             }
             if (shown.length == 0) {
-                x += '<div class="qcEmpty">No commands match "' + Q.qcEsc(q) + '". <span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearFilter(\'m\')">Clear filter</span></div>';
+                x += '<div class="qcEmpty">No commands match ' + (q ? '"' + Q.qcEsc(q) + '"' : 'the chosen groups') + '. <span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearFilter(\'m\')">Clear filter</span></div>';
             }
             var idx = 0;
             groups.forEach(function (g) {
@@ -518,15 +571,17 @@ module.exports.quickcommands = function (parent) {
                 first.insertAdjacentElement('afterend', row);
             }
             var q = canFilter ? (st.tFilter || '') : '';
-            var shown = cmds.filter(function (c) { return Q.qcFilterMatch(c, q); });
+            var chips = Q.qcChipsHtml('t', cmds);
+            var shown = Q.qcFiltered('terminal', q, chips ? 't' : null);
             var groups = Q.qcGroupsFor(shown);
             var x = '<td><div class="qcStrip"><span class="qcLabel">Quick commands</span>';
             if (canFilter) {
                 x += '<span class="qcFwrap"><input type="text" id="qcTermFilter" class="qcFin" placeholder="Filter" autocomplete="off" title="Filter commands by name, command or group (press / to jump here)" value="' + Q.qcEsc(q) + '" oninput="return pluginHandler.quickcommands.qcSetFilter(\'t\', this.value)" onkeydown="return pluginHandler.quickcommands.qcFilterKey(event, \'t\')" />'
                     + (q ? '<span class="qcFclr" title="Clear filter" onclick="return pluginHandler.quickcommands.qcClearFilter(\'t\')">✕</span>' : '') + '</span>';
             }
+            x += chips;
             if (shown.length == 0) {
-                x += '<span class="qcEmptyF">No commands match "' + Q.qcEsc(q) + '" · <span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearFilter(\'t\')">Clear</span></span>';
+                x += '<span class="qcEmptyF">No commands match ' + (q ? '"' + Q.qcEsc(q) + '"' : 'the chosen groups') + ' · <span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearFilter(\'t\')">Clear</span></span>';
             }
             groups.forEach(function (g) {
                 var gcol = (g.name && st.config.groupColors) ? st.config.groupColors[g.name] : null;
@@ -550,10 +605,18 @@ module.exports.quickcommands = function (parent) {
         if (kind == 'g') { Q.qcRenderGeneral(); } else { Q.qcRenderTerminal(); }
         var id = (kind == 't') ? 'qcTermFilter' : (kind == 'g') ? 'qcGenFilter' : 'qcMenuFilter';
         var f = document.getElementById(id);
-        if (f) { f.focus(); var l = f.value.length; try { f.setSelectionRange(l, l); } catch (e) { } }
+        // Give the field its focus back only when it had it (or is the natural
+        // target after a chip click) - never yank focus from a running terminal.
+        var a = document.activeElement, fromUs = (a == null) || (a === document.body) || !!(a.closest && a.closest('#qcTermRow, #qcTermMenuWrap, #qcGeneral'));
+        if (f && fromUs) { f.focus(); var l = f.value.length; try { f.setSelectionRange(l, l); } catch (e) { } }
         return false;
     };
-    obj.qcClearFilter = function (kind) { return pluginHandler.quickcommands.qcSetFilter(kind, ''); };
+    // "Clear" resets the text and the group chips of that surface.
+    obj.qcClearFilter = function (kind) {
+        var Q = pluginHandler.quickcommands, st = Q.qcState();
+        if (kind == 't') { st.tGroups = {}; } else if (kind == 'g') { st.gGroups = {}; } else { st.mGroups = {}; }
+        return Q.qcSetFilter(kind, '');
+    };
     obj.qcFilterKey = function (e, kind) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         var q = (kind == 't') ? st.tFilter : (kind == 'g') ? st.gFilter : st.mFilter;
@@ -561,7 +624,7 @@ module.exports.quickcommands = function (parent) {
             if (q) { Q.qcSetFilter(kind, ''); } else { e.target.blur(); }
             e.stopPropagation(); e.preventDefault(); return false;
         }
-        var vis = Q.qcFiltered((kind == 'g') ? 'general' : 'terminal', q || '');
+        var vis = Q.qcFiltered((kind == 'g') ? 'general' : 'terminal', q || '', kind);
         if (kind == 'm') {
             if ((e.key == 'ArrowDown') || (e.key == 'ArrowUp')) {
                 if (vis.length) {
@@ -622,15 +685,17 @@ module.exports.quickcommands = function (parent) {
         if (panel == null) { panel = document.createElement('div'); panel.id = 'qcGeneral'; anchor.parentNode.insertBefore(panel, anchor); }
         var canFilter = (cmds.length >= 5);
         var q = canFilter ? (st.gFilter || '') : '';
-        var shown = cmds.filter(function (c) { return Q.qcFilterMatch(c, q); });
+        var chips = Q.qcChipsHtml('g', cmds);
+        var shown = Q.qcFiltered('general', q, chips ? 'g' : null);
         var x = '<div class="qcPanel"><div class="qcPanelH"><span>Quick commands</span><span class="qcHint">Output opens in a window when the command finishes</span><span class="qcGrow"></span>';
+        x += chips;
         if (canFilter) {
             x += '<span class="qcFwrap"><input type="text" id="qcGenFilter" class="qcFin" placeholder="Filter" autocomplete="off" title="Filter commands by name, command or group (press / to jump here)" value="' + Q.qcEsc(q) + '" oninput="return pluginHandler.quickcommands.qcSetFilter(\'g\', this.value)" onkeydown="return pluginHandler.quickcommands.qcFilterKey(event, \'g\')" />'
                 + (q ? '<span class="qcFclr" title="Clear filter" onclick="return pluginHandler.quickcommands.qcClearFilter(\'g\')">✕</span>' : '') + '</span>';
         }
         x += (st.canManage ? '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcOpenManage()">Manage…</span>' : '') + '</div><div class="qcPanelB">';
         if (shown.length == 0) {
-            x += '<span class="qcEmptyF">No commands match "' + Q.qcEsc(q) + '" · <span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearFilter(\'g\')">Clear</span></span>';
+            x += '<span class="qcEmptyF">No commands match ' + (q ? '"' + Q.qcEsc(q) + '"' : 'the chosen groups') + ' · <span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearFilter(\'g\')">Clear</span></span>';
         }
         shown.forEach(function (c) { x += Q.qcKeyHtml(c, 'general', q); });
         x += '</div></div>';

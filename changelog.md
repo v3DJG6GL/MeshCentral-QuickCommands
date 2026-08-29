@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.2
+
+- **Group chips** next to the keyword filter on the Terminal strip, in the
+  Terminal menu and on the General panel, shown as soon as a device has keys
+  from **2 or more groups** (they were in the design but had not made it into
+  0.3.0). A chip narrows the keys to that group; several chips combine; the
+  text filter narrows further. Chips carry the group's color dot; *Clear*
+  resets chips and text together. Clicking a chip inside the menu keeps the
+  menu open.
+
 ## 0.3.1
 
 - The keyword filter appears from **5 keys** on (was 10 - too high for a
