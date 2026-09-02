@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4
+
+- The editor lists *Show on* as General, Desktop, Terminal (checkboxes, the
+  G/D/T badges on the keys and the summary line).
+
 ## 0.3.3
 
 - **Desktop tab**: keys flagged *Show on Desktop* appear as a *Quick commands*
