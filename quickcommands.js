@@ -3,7 +3,7 @@
 * @license Apache-2.0
 *
 * One-click "keys" for commands you run again and again. Keys appear on the
-* Terminal tab (as a strip or a menu), optionally on the General tab, and in
+* Terminal tab (as a strip or a menu), optionally on the Desktop and General tabs, and in
 * the device's Plugins tab. Commands are managed in My Server > Plugins.
 */
 
@@ -40,6 +40,11 @@ module.exports.quickcommands = function (parent) {
         'qcRenderAll',
         'qcRenderTerminal',
         'qcRenderGeneral',
+        'qcRenderDesktop',
+        'qcMenuHtml',
+        'qcIsMenuKind',
+        'qcWhereOf',
+        'qcFilterId',
         'qcRenderPluginTab',
         'qcRenderLog',
         'qcToggleMenu',
@@ -111,7 +116,7 @@ module.exports.quickcommands = function (parent) {
     obj.qcState = function () {
         var Q = pluginHandler.quickcommands;
         if (Q._st == null) {
-            Q._st = { config: null, canManage: false, pending: {}, log: [], menuOpen: false, hooked: false, nodeid: null, mdInit: false, cfgReq: false, cxNodeid: null, picker: null, bulk: null, tFilter: '', gFilter: '', mFilter: '', mActive: -1, tGroups: {}, gGroups: {}, mGroups: {} };
+            Q._st = { config: null, canManage: false, pending: {}, log: [], menuOpen: false, hooked: false, nodeid: null, mdInit: false, cfgReq: false, cxNodeid: null, picker: null, bulk: null, tFilter: '', gFilter: '', mFilter: '', dFilter: '', mActive: -1, dActive: -1, tGroups: {}, gGroups: {}, mGroups: {}, dGroups: {} };
             // The run log survives a page reload (per browser tab). Runs that were
             // still going when the page reloaded cannot be picked up again - the
             // responseid is gone - so they are closed with a note.
@@ -141,7 +146,7 @@ module.exports.quickcommands = function (parent) {
         try { Q.qcMyDevicesInit(); } catch (e) { }
         document.addEventListener('click', function (e) {
             var Q2 = pluginHandler.quickcommands, st2 = Q2.qcState();
-            if (st2.menuOpen && !(e.target.closest && e.target.closest('#qcTermMenuWrap'))) { Q2.qcCloseMenu(); }
+            if (st2.menuOpen && !(e.target.closest && e.target.closest('.qcMenuWrap'))) { Q2.qcCloseMenu(); }
             if (!(e.target.closest && (e.target.closest('#qcCxFly') || e.target.closest('#qcCxItem')))) { Q2.qcCxFlyHide(); }
         });
         // "/" focuses the nearest visible quick-command filter. Never while typing
@@ -153,7 +158,7 @@ module.exports.quickcommands = function (parent) {
                 if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
                 if ((typeof terminal != 'undefined') && (terminal != null)) return;
                 var f = null;
-                ['qcTermFilter', 'qcMenuFilter', 'qcGenFilter'].forEach(function (id) {
+                ['qcTermFilter', 'qcMenuFilter', 'qcDeskFilter', 'qcGenFilter'].forEach(function (id) {
                     var el = document.getElementById(id);
                     if (f == null && el && (el.offsetParent != null)) f = el;
                 });
@@ -229,7 +234,8 @@ module.exports.quickcommands = function (parent) {
 .night .qcMenuH { background:#1a1f1e; color:#8b9591; }
 .qcMenuI { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:6px 10px; cursor:pointer; border:0; width:100%; background:none; font:inherit; color:inherit; text-align:left; }
 .qcMenuI:hover { background:#f4f8f7; } .night .qcMenuI:hover { background:#1d2422; }
-.qcMenuI .qcN { font-weight:bold; display:flex; align-items:center; gap:5px; }
+.qcMenuI .qcN { font-weight:bold; display:flex; align-items:center; gap:5px; white-space:nowrap; }
+.qcMenuWrap input.btn { line-height:1.2; }
 .qcMenuI .qcC { font-family:"Cascadia Mono", Consolas, monospace; color:#5a6368; white-space:nowrap; max-width:200px; overflow:hidden; text-overflow:ellipsis; }
 .qcMenuI.danger .qcN { color:#C8362B; }
 .qcMenuI.danger:not(.termMode) .qcC { color:#C8362B; }
@@ -322,7 +328,11 @@ module.exports.quickcommands = function (parent) {
 .qcSpin { display:inline-block; width:9px; height:9px; border:2px solid #B8741A; border-top-color:transparent; border-radius:50%; animation:qcSpin 0.9s linear infinite; }
 @keyframes qcSpin { to { transform:rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .qcSpin { animation:none; } }
+#qcCxItem { white-space:nowrap; display:block; width:auto; }
 #qcCxItem .qcZap { color:#B8741A; font-weight:bold; }
+#qcCxItem .qcCxArr { float:right; margin-left:10px; opacity:0.7; }
+/* The core caps the context menu at 150px; our entry needs one line. */
+#contextMenu.qcWide { max-width:215px; }
 #qcCxFly { position:fixed; z-index:1001; min-width:260px; max-height:60vh; overflow:auto; background:#fff; border:1px solid #8f9a9f; box-shadow:0 4px 14px rgba(0,0,0,0.25); font-size:12px; text-align:left; color:#000; display:none; line-height:normal; }
 .night #qcCxFly { background:#111; border-color:#555; color:#ddd; }
 /* Shared parts of the results controls (toolbar button + floating pill). */
@@ -409,19 +419,21 @@ module.exports.quickcommands = function (parent) {
         return Q.qcEsc(s.substring(0, i)) + '<mark class="qcMk">' + Q.qcEsc(s.substr(i, q.length)) + '</mark>' + Q.qcEsc(s.substring(i + q.length));
     };
 
-    // Selected group chips for a surface ('t' strip, 'm' menu, 'g' general) as a
-    // map name -> true; an empty map means every group.
+    // Surfaces: 't' Terminal strip, 'm' Terminal menu, 'd' Desktop menu, 'g' General panel.
+    obj.qcIsMenuKind = function (kind) { return (kind == 'm') || (kind == 'd'); };
+    obj.qcWhereOf = function (kind) { return (kind == 'g') ? 'general' : (kind == 'd') ? 'desktop' : 'terminal'; };
+    obj.qcFilterId = function (kind) { return (kind == 't') ? 'qcTermFilter' : (kind == 'g') ? 'qcGenFilter' : (kind == 'd') ? 'qcDeskFilter' : 'qcMenuFilter'; };
+    // Selected group chips for a surface as a map name -> true; an empty map means every group.
     obj.qcGroupSel = function (kind) {
         var st = pluginHandler.quickcommands.qcState();
-        return (kind == 't') ? st.tGroups : (kind == 'g') ? st.gGroups : st.mGroups;
+        return st[kind + 'Groups'] || (st[kind + 'Groups'] = {});
     };
     obj.qcToggleGroup = function (kind, name) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         var sel = Q.qcGroupSel(kind);
         if (sel[name]) { delete sel[name]; } else { sel[name] = true; }
-        if (kind == 'm') st.mActive = st.mFilter ? 0 : -1;
-        var q = (kind == 't') ? st.tFilter : (kind == 'g') ? st.gFilter : st.mFilter;
-        return Q.qcSetFilter(kind, q || '');
+        if (Q.qcIsMenuKind(kind)) st[kind + 'Active'] = st[kind + 'Filter'] ? 0 : -1;
+        return Q.qcSetFilter(kind, st[kind + 'Filter'] || '');
     };
     // Group chips: the chip picks the haystack, the text narrows it. Shown from
     // 2 groups on. Chips show every group of the surface, not only the matches,
@@ -460,6 +472,7 @@ module.exports.quickcommands = function (parent) {
             if (!Q.qcApplicable(c)) return false;
             if (where == 'terminal') return c.showTerminal !== false;
             if (where == 'general') return c.showGeneral === true;
+            if (where == 'desktop') return c.showDesktop === true;
             return true;
         });
     };
@@ -506,6 +519,7 @@ module.exports.quickcommands = function (parent) {
         var Q = pluginHandler.quickcommands;
         try { Q.qcRenderTerminal(); } catch (e) { console.log('quickcommands terminal render', e); }
         try { Q.qcRenderGeneral(); } catch (e) { console.log('quickcommands general render', e); }
+        try { Q.qcRenderDesktop(); } catch (e) { console.log('quickcommands desktop render', e); }
         try { Q.qcRenderPluginTab(); } catch (e) { console.log('quickcommands tab render', e); }
     };
 
@@ -531,37 +545,7 @@ module.exports.quickcommands = function (parent) {
                 wrap = document.createElement('div'); wrap.id = 'qcTermMenuWrap'; wrap.className = 'qcMenuWrap';
                 host.parentNode.insertBefore(wrap, host);
             }
-            var q = canFilter ? (st.mFilter || '') : '';
-            var chips = Q.qcChipsHtml('m', cmds);
-            var shown = Q.qcFiltered('terminal', q, chips ? 'm' : null);
-            var groups = Q.qcGroupsFor(shown);
-            var x = '<input type="button" value="Quick commands ▾" onclick="return pluginHandler.quickcommands.qcToggleMenu(event)" onkeypress="return false" onkeydown="return false" />';
-            x += '<div class="qcMenu" id="qcTermMenu" style="display:' + (st.menuOpen ? '' : 'none') + '">';
-            if (canFilter || chips) {
-                x += '<div class="qcMenuS">';
-                if (canFilter) {
-                    x += '<span class="qcFwrap"><input type="text" id="qcMenuFilter" class="qcFin" placeholder="Filter commands" autocomplete="off" value="' + Q.qcEsc(q) + '" oninput="return pluginHandler.quickcommands.qcSetFilter(\'m\', this.value)" onkeydown="return pluginHandler.quickcommands.qcFilterKey(event, \'m\')" />'
-                        + (q ? '<span class="qcFclr" title="Clear filter" onclick="return pluginHandler.quickcommands.qcClearFilter(\'m\')">✕</span>' : '') + '</span>';
-                }
-                x += chips + '</div>';
-            }
-            if (shown.length == 0) {
-                x += '<div class="qcEmpty">No commands match ' + (q ? '"' + Q.qcEsc(q) + '"' : 'the chosen groups') + '. <span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearFilter(\'m\')">Clear filter</span></div>';
-            }
-            var idx = 0;
-            groups.forEach(function (g) {
-                var gcol = (g.name && st.config.groupColors) ? st.config.groupColors[g.name] : null;
-                if (g.name) x += '<div class="qcMenuH">' + (gcol ? '<span class="qcDot qcc-' + gcol + '"></span>' : '') + Q.qcEsc(g.name) + '</div>';
-                g.commands.forEach(function (c) {
-                    var col = Q.qcColorOf(c);
-                    var act = (q && (idx === st.mActive)) ? ' act' : '';
-                    x += '<button type="button" class="qcMenuI' + act + (c.confirm ? ' danger' : '') + (c.mode == 'terminal' ? ' termMode' : '') + (col ? ' qcc-' + col : '') + '" title="' + Q.qcEsc(c.description || '') + '" onclick="return pluginHandler.quickcommands.qcRun(\'' + Q.qcEsc(c.id) + '\',\'terminal\')">'
-                        + '<span class="qcN">' + Q.qcTagsHtml(c) + Q.qcMark(c.name, q) + '</span><span class="qcC">' + Q.qcMark(c.command.split(/\r?\n/)[0], q) + '</span></button>';
-                    idx++;
-                });
-            });
-            x += '<div class="qcMenuF"><span class="qcLink" onclick="return pluginHandler.quickcommands.qcSetTermView(\'strip\')">Show as strip</span>' + manage + '</div></div>';
-            wrap.innerHTML = x;
+            wrap.innerHTML = Q.qcMenuHtml('m', cmds, canFilter, '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcSetTermView(\'strip\')">Show as strip</span>' + manage);
         } else {
             if (wrap) { wrap.remove(); st.menuOpen = false; }
             if (row == null) {
@@ -595,55 +579,114 @@ module.exports.quickcommands = function (parent) {
         }
     };
 
+
+    // The "Quick commands ▾" button plus its dropdown, shared by the Terminal
+    // and Desktop menus. kind picks the filter state, footer the links at the bottom.
+    obj.qcMenuHtml = function (kind, cmds, canFilter, footer) {
+        var Q = pluginHandler.quickcommands, st = Q.qcState();
+        var where = Q.qcWhereOf(kind), fid = Q.qcFilterId(kind);
+        var q = canFilter ? (st[kind + 'Filter'] || '') : '';
+        var chips = Q.qcChipsHtml(kind, cmds);
+        var shown = Q.qcFiltered(where, q, chips ? kind : null);
+        var groups = Q.qcGroupsFor(shown);
+        // The modern UI's toolbar buttons are Bootstrap; match them there.
+        var bcls = (typeof showModal === 'function') ? ' class="btn btn-secondary btn-sm"' : '';
+        var x = '<input type="button"' + bcls + ' value="Quick commands ▾" onclick="return pluginHandler.quickcommands.qcToggleMenu(event)" onkeypress="return false" onkeydown="return false" />';
+        x += '<div class="qcMenu" style="display:' + (st.menuOpen ? '' : 'none') + '">';
+        if (canFilter || chips) {
+            x += '<div class="qcMenuS">';
+            if (canFilter) {
+                x += '<span class="qcFwrap"><input type="text" id="' + fid + '" class="qcFin" placeholder="Filter commands" autocomplete="off" value="' + Q.qcEsc(q) + '" oninput="return pluginHandler.quickcommands.qcSetFilter(\'' + kind + '\', this.value)" onkeydown="return pluginHandler.quickcommands.qcFilterKey(event, \'' + kind + '\')" />'
+                    + (q ? '<span class="qcFclr" title="Clear filter" onclick="return pluginHandler.quickcommands.qcClearFilter(\'' + kind + '\')">✕</span>' : '') + '</span>';
+            }
+            x += chips + '</div>';
+        }
+        if (shown.length == 0) {
+            x += '<div class="qcEmpty">No commands match ' + (q ? '"' + Q.qcEsc(q) + '"' : 'the chosen groups') + '. <span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearFilter(\'' + kind + '\')">Clear filter</span></div>';
+        }
+        var idx = 0;
+        groups.forEach(function (g) {
+            var gcol = (g.name && st.config.groupColors) ? st.config.groupColors[g.name] : null;
+            if (g.name) x += '<div class="qcMenuH">' + (gcol ? '<span class="qcDot qcc-' + gcol + '"></span>' : '') + Q.qcEsc(g.name) + '</div>';
+            g.commands.forEach(function (c) {
+                var col = Q.qcColorOf(c);
+                var act = (q && (idx === st[kind + 'Active'])) ? ' act' : '';
+                x += '<button type="button" class="qcMenuI' + act + (c.confirm ? ' danger' : '') + (c.mode == 'terminal' ? ' termMode' : '') + (col ? ' qcc-' + col : '') + '" title="' + Q.qcEsc(c.description || '') + '" onclick="return pluginHandler.quickcommands.qcRun(\'' + Q.qcEsc(c.id) + '\',\'' + where + '\')">'
+                    + '<span class="qcN">' + Q.qcTagsHtml(c) + Q.qcMark(c.name, q) + '</span><span class="qcC">' + Q.qcMark(c.command.split(/\r?\n/)[0], q) + '</span></button>';
+                idx++;
+            });
+        });
+        x += '<div class="qcMenuF">' + footer + '</div></div>';
+        return x;
+    };
+
+    // Desktop tab: a menu button in the toolbar, next to the Actions button,
+    // for the keys flagged "Show on Desktop". (A strip has no room here - the
+    // desktop area is sized from the viewport.)
+    obj.qcRenderDesktop = function () {
+        var Q = pluginHandler.quickcommands, st = Q.qcState();
+        var host = document.getElementById('desktopCustomUpperRight');
+        if (host == null) return;
+        var wrap = document.getElementById('qcDeskMenuWrap');
+        var cmds = Q.qcVisible('desktop');
+        if ((st.config == null) || (cmds.length == 0)) { if (wrap) wrap.remove(); return; }
+        if (wrap == null) {
+            wrap = document.createElement('div'); wrap.id = 'qcDeskMenuWrap'; wrap.className = 'qcMenuWrap';
+            host.parentNode.insertBefore(wrap, host);
+        }
+        var manage = st.canManage ? '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcOpenManage()">Manage…</span>' : '';
+        wrap.innerHTML = Q.qcMenuHtml('d', cmds, (cmds.length >= 5), manage || '<span class="qcHint">Output opens in a window when the command finishes</span>');
+    };
+
     // Keyword filter state + focus restore. Renders replace the whole strip/menu/panel
     // markup, so the input's value and caret are put back by hand after the render.
     obj.qcSetFilter = function (kind, v) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
-        if (kind == 't') { st.tFilter = v; }
-        else if (kind == 'g') { st.gFilter = v; }
-        else { if (v !== st.mFilter) { st.mActive = v ? 0 : -1; } st.mFilter = v; }
-        if (kind == 'g') { Q.qcRenderGeneral(); } else { Q.qcRenderTerminal(); }
-        var id = (kind == 't') ? 'qcTermFilter' : (kind == 'g') ? 'qcGenFilter' : 'qcMenuFilter';
-        var f = document.getElementById(id);
+        if (Q.qcIsMenuKind(kind) && (v !== st[kind + 'Filter'])) { st[kind + 'Active'] = v ? 0 : -1; }
+        st[kind + 'Filter'] = v;
+        if (kind == 'g') { Q.qcRenderGeneral(); } else if (kind == 'd') { Q.qcRenderDesktop(); } else { Q.qcRenderTerminal(); }
+        var f = document.getElementById(Q.qcFilterId(kind));
         // Give the field its focus back only when it had it (or is the natural
         // target after a chip click) - never yank focus from a running terminal.
-        var a = document.activeElement, fromUs = (a == null) || (a === document.body) || !!(a.closest && a.closest('#qcTermRow, #qcTermMenuWrap, #qcGeneral'));
+        var a = document.activeElement, fromUs = (a == null) || (a === document.body) || !!(a.closest && a.closest('#qcTermRow, .qcMenuWrap, #qcGeneral'));
         if (f && fromUs) { f.focus(); var l = f.value.length; try { f.setSelectionRange(l, l); } catch (e) { } }
         return false;
     };
     // "Clear" resets the text and the group chips of that surface.
     obj.qcClearFilter = function (kind) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
-        if (kind == 't') { st.tGroups = {}; } else if (kind == 'g') { st.gGroups = {}; } else { st.mGroups = {}; }
+        st[kind + 'Groups'] = {};
         return Q.qcSetFilter(kind, '');
     };
     obj.qcFilterKey = function (e, kind) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
-        var q = (kind == 't') ? st.tFilter : (kind == 'g') ? st.gFilter : st.mFilter;
+        var q = st[kind + 'Filter'];
         if (e.key == 'Escape') { // first Esc clears, second leaves the field
             if (q) { Q.qcSetFilter(kind, ''); } else { e.target.blur(); }
             e.stopPropagation(); e.preventDefault(); return false;
         }
-        var vis = Q.qcFiltered((kind == 'g') ? 'general' : 'terminal', q || '', kind);
-        if (kind == 'm') {
+        var where = Q.qcWhereOf(kind);
+        var vis = Q.qcFiltered(where, q || '', kind);
+        if (Q.qcIsMenuKind(kind)) {
             if ((e.key == 'ArrowDown') || (e.key == 'ArrowUp')) {
                 if (vis.length) {
-                    var cur = (st.mActive == null || st.mActive < 0) ? -1 : st.mActive;
-                    st.mActive = (cur + ((e.key == 'ArrowDown') ? 1 : -1) + vis.length) % vis.length;
-                    Q.qcSetFilter('m', st.mFilter || ''); // re-render + refocus
-                    var act = document.querySelector('#qcTermMenu .qcMenuI.act');
+                    var cur = (st[kind + 'Active'] == null || st[kind + 'Active'] < 0) ? -1 : st[kind + 'Active'];
+                    st[kind + 'Active'] = (cur + ((e.key == 'ArrowDown') ? 1 : -1) + vis.length) % vis.length;
+                    Q.qcSetFilter(kind, st[kind + 'Filter'] || ''); // re-render + refocus
+                    var act = document.querySelector('.qcMenuWrap .qcMenuI.act');
                     if (act && act.scrollIntoView) act.scrollIntoView({ block: 'nearest' });
                 }
                 e.preventDefault(); return false;
             }
             if (e.key == 'Enter') {
-                var c = (q && (st.mActive >= 0) && vis[st.mActive]) ? vis[st.mActive] : ((vis.length == 1) ? vis[0] : null);
-                if (c) { Q.qcRun(c.id, 'terminal'); }
+                var a = st[kind + 'Active'];
+                var c = (q && (a >= 0) && vis[a]) ? vis[a] : ((vis.length == 1) ? vis[0] : null);
+                if (c) { Q.qcRun(c.id, where); }
                 e.preventDefault(); return false;
             }
         } else if (e.key == 'Enter') {
             // The last key standing runs on Enter - filter-to-one is a launcher.
-            if (q && (vis.length == 1)) { Q.qcRun(vis[0].id, (kind == 't') ? 'terminal' : 'general'); }
+            if (q && (vis.length == 1)) { Q.qcRun(vis[0].id, where); }
             e.preventDefault(); return false;
         }
         return true;
@@ -652,15 +695,17 @@ module.exports.quickcommands = function (parent) {
     obj.qcToggleMenu = function (e) {
         var st = pluginHandler.quickcommands.qcState();
         st.menuOpen = !st.menuOpen;
-        var m = document.getElementById('qcTermMenu'); if (m) m.style.display = st.menuOpen ? '' : 'none';
-        if (st.menuOpen) { var f = document.getElementById('qcMenuFilter'); if (f) { f.focus(); f.select(); } }
+        var wrap = (e && e.target && e.target.closest) ? e.target.closest('.qcMenuWrap') : null;
+        // Only one menu is on screen at a time (Terminal or Desktop tab); close the rest.
+        document.querySelectorAll('.qcMenuWrap .qcMenu').forEach(function (m) { m.style.display = (st.menuOpen && wrap && wrap.contains(m)) ? '' : 'none'; });
+        if (st.menuOpen && wrap) { var f = wrap.querySelector('.qcFin'); if (f) { f.focus(); f.select(); } }
         if (e && e.stopPropagation) e.stopPropagation();
         return false;
     };
     obj.qcCloseMenu = function () {
         var st = pluginHandler.quickcommands.qcState();
         st.menuOpen = false;
-        var m = document.getElementById('qcTermMenu'); if (m) m.style.display = 'none';
+        document.querySelectorAll('.qcMenuWrap .qcMenu').forEach(function (m) { m.style.display = 'none'; });
     };
     obj.qcSetTermView = function (view) {
         putstore('qc_termview', view);
@@ -1174,7 +1219,7 @@ module.exports.quickcommands = function (parent) {
                 var hr = document.createElement('hr'); hr.id = 'qcCxSplit'; hr.style.display = 'none'; cm.appendChild(hr);
                 var it = document.createElement('div');
                 it.id = 'qcCxItem'; it.className = 'cmtext'; it.style.display = 'none';
-                it.innerHTML = '<span class="qcZap">⚡</span> Quick Commands <span style="float:right;margin-left:8px">▸</span>';
+                it.innerHTML = '<span class="qcZap">⚡</span> Quick Commands<span class="qcCxArr">▸</span>';
                 it.onclick = function () { return pluginHandler.quickcommands.qcCxToggleFly(true); };
                 it.onmouseenter = function () { pluginHandler.quickcommands.qcCxToggleFly(false); };
                 cm.appendChild(it);
@@ -1500,6 +1545,7 @@ module.exports.quickcommands = function (parent) {
         } catch (e) { }
         it.style.display = show ? '' : 'none';
         if (hr) { hr.style.display = show ? '' : 'none'; }
+        try { document.getElementById('contextMenu').classList.toggle('qcWide', show); } catch (e) { }
         Q.qcCxFlyHide();
     };
 
@@ -1606,14 +1652,14 @@ module.exports.quickcommands = function (parent) {
             groups: ['Network', 'Policy', 'Power', 'Linux'],
             groupColors: { 'Network': 'blue', 'Power': 'red' },
             commands: [
-                { id: 'ipconfig', name: 'IP config', group: 'Network', shell: 'cmd', command: 'ipconfig /all', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: 'Full adapter, DNS and DHCP details.' },
+                { id: 'ipconfig', name: 'IP config', group: 'Network', shell: 'cmd', command: 'ipconfig /all', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, showDesktop: true, confirm: false, description: 'Full adapter, DNS and DHCP details.' },
                 { id: 'flushdns', name: 'Flush DNS', group: 'Network', shell: 'cmd', command: 'ipconfig /flushdns', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: false, description: '' },
                 { id: 'netinfo', name: 'Network info', group: 'Network', shell: 'agent', command: 'netinfo', mode: 'run', runAs: 0, showTerminal: false, showGeneral: true, confirm: false, description: 'Interfaces as the agent sees them.' },
-                { id: 'gpupdate', name: 'Group policy', group: 'Policy', shell: 'cmd', command: 'gpupdate /force', mode: 'terminal', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: 'Interactive: runs in the terminal, so the output appears live and a possible restart question (J/N) can be answered.' },
+                { id: 'gpupdate', name: 'Group policy', group: 'Policy', shell: 'cmd', command: 'gpupdate /force', mode: 'terminal', runAs: 0, showTerminal: true, showGeneral: true, showDesktop: true, confirm: false, description: 'Interactive: runs in the terminal, so the output appears live and a possible restart question (J/N) can be answered.' },
                 { id: 'gpupdatebg', name: 'Group policy (silent)', group: 'Policy', shell: 'cmd', command: 'chcp 65001 >nul & echo n | gpupdate /force', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: false, description: 'Hands-off: gpupdate buffers on a pipe, so the output appears when it finishes. The piped "n" answers a possible restart question with No; chcp 65001 keeps umlauts readable.' },
-                { id: 'restart', name: 'Restart now', group: 'Power', shell: 'cmd', command: 'shutdown /r /f /t 0', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: true, description: 'Forces all programs to close and restarts immediately.' },
+                { id: 'restart', name: 'Restart now', group: 'Power', shell: 'cmd', command: 'shutdown /r /f /t 0', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, showDesktop: true, confirm: true, description: 'Forces all programs to close and restarts immediately.' },
                 { id: 'linuxreboot', name: 'Reboot', group: 'Linux', shell: 'sh', command: 'systemctl reboot', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: true, description: '' },
-                { id: 'linuxdf', name: 'Disk usage', group: 'Linux', shell: 'sh', command: 'df -h', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, confirm: false, description: '' }
+                { id: 'linuxdf', name: 'Disk usage', group: 'Linux', shell: 'sh', command: 'df -h', mode: 'run', runAs: 0, showTerminal: true, showGeneral: true, showDesktop: true, confirm: false, description: '' }
             ]
         };
     };
@@ -1663,6 +1709,7 @@ module.exports.quickcommands = function (parent) {
                     runAs: ([0, 1, 2].indexOf(c.runAs | 0) >= 0) ? (c.runAs | 0) : 0,
                     showTerminal: (c.showTerminal !== false),
                     showGeneral: (c.showGeneral === true),
+                    showDesktop: (c.showDesktop === true),
                     confirm: (c.confirm === true),
                     color: (COLORS.indexOf(c.color) >= 0) ? c.color : '',
                     description: str(c.description, 300).trim()

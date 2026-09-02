@@ -461,7 +461,8 @@ function render() { normalize(); renderSide(); renderDeck(); renderDrawer(); ren
 function renderSummary() {
   var t = config.commands.filter(function (c) { return c.showTerminal !== false; }).length;
   var g = config.commands.filter(function (c) { return c.showGeneral === true; }).length;
-  document.getElementById('summary').textContent = config.commands.length + ' command' + (config.commands.length == 1 ? '' : 's') + ' · ' + t + ' on the Terminal tab · ' + g + ' on General';
+  var d = config.commands.filter(function (c) { return c.showDesktop === true; }).length;
+  document.getElementById('summary').textContent = config.commands.length + ' command' + (config.commands.length == 1 ? '' : 's') + ' · ' + t + ' on the Terminal tab · ' + d + ' on Desktop · ' + g + ' on General';
 }
 
 function renderSide() {
@@ -487,7 +488,7 @@ function keyHtml(c) {
     scb = '<span class="scb" title="Appears on ' + n + ' of ' + targets.nodes.length + ' devices">' + FUNNEL + n + '</span>';
   }
   return '<button class="' + cls + '" draggable="true" data-id="' + esc(c.id) + '" onclick="select(\'' + esc(c.id) + '\')" ondragstart="dragStart(event)" ondragend="dragEnd(event)" title="' + esc(c.command) + '">'
-    + '<span class="n"><span class="tag ' + c.shell + '">' + SHELL_LABEL[c.shell] + '</span>' + (c.mode == 'terminal' ? '<span class="tag term" title="Typed into the terminal">&gt;_</span>' : '') + '<span class="name">' + esc(c.name) + '</span>' + scb + '<span class="where"><i class="' + (c.showTerminal !== false ? '' : 'off') + '" title="Terminal tab">T</i><i class="' + (c.showGeneral ? '' : 'off') + '" title="General tab">G</i></span></span>'
+    + '<span class="n"><span class="tag ' + c.shell + '">' + SHELL_LABEL[c.shell] + '</span>' + (c.mode == 'terminal' ? '<span class="tag term" title="Typed into the terminal">&gt;_</span>' : '') + '<span class="name">' + esc(c.name) + '</span>' + scb + '<span class="where"><i class="' + (c.showTerminal !== false ? '' : 'off') + '" title="Terminal tab">T</i><i class="' + (c.showDesktop ? '' : 'off') + '" title="Desktop tab">D</i><i class="' + (c.showGeneral ? '' : 'off') + '" title="General tab">G</i></span></span>'
     + '<span class="c">' + esc(c.command.split(/\r?\n/)[0]) + '</span></button>';
 }
 
@@ -495,7 +496,7 @@ function renderDeck() {
   var x = '';
   var groups = groupsInOrder().filter(function (g) { return state.filter == null || g.name === state.filter; });
   if (config.commands.length == 0) {
-    x += '<div class="empty"><b>No commands yet.</b><br>Add one with "New command", or start from the example set with "Load example commands" on the left. Every command becomes a key on the devices\' Terminal tab (and on General, if you want).</div>';
+    x += '<div class="empty"><b>No commands yet.</b><br>Add one with "New command", or start from the example set with "Load example commands" on the left. Every command becomes a key on the devices\' Terminal tab (and on Desktop or General, if you want).</div>';
   }
   groups.forEach(function (g, gi) {
     var gname = g.name;
@@ -537,7 +538,7 @@ function renderDrawer() {
     x += '<div class="field"><label>Run as</label>' + seg('runAs', [{ v: 0, l: 'Agent (SYSTEM/root)' }, { v: 1, l: 'User if signed in' }, { v: 2, l: 'User only' }]) + '</div>';
   }
   if (c.mode == 'terminal' && c.shell == 'agent') { x += '<div class="warn">Agent console commands cannot be typed into a terminal. Switch to "Run, show output".</div>'; }
-  x += '<div class="field"><label>Show on</label><div class="row"><label class="chk"><input type="checkbox" ' + (c.showTerminal !== false ? 'checked' : '') + ' onchange="setField(\'showTerminal\', this.checked)" /> Terminal tab</label><label class="chk"><input type="checkbox" ' + (c.showGeneral ? 'checked' : '') + ' onchange="setField(\'showGeneral\', this.checked)" /> General tab</label></div><span class="hint">The device\'s Plugins tab always lists every command.</span></div>';
+  x += '<div class="field"><label>Show on</label><div class="row"><label class="chk"><input type="checkbox" ' + (c.showTerminal !== false ? 'checked' : '') + ' onchange="setField(\'showTerminal\', this.checked)" /> Terminal tab</label><label class="chk"><input type="checkbox" ' + (c.showDesktop ? 'checked' : '') + ' onchange="setField(\'showDesktop\', this.checked)" /> Desktop tab</label><label class="chk"><input type="checkbox" ' + (c.showGeneral ? 'checked' : '') + ' onchange="setField(\'showGeneral\', this.checked)" /> General tab</label></div><span class="hint">Desktop shows the keys as a menu button in its toolbar. The device\'s Plugins tab always lists every command.</span></div>';
   x += scopeEditorHtml(false);
   x += '<label class="chk"><input type="checkbox" ' + (c.confirm ? 'checked' : '') + ' onchange="setField(\'confirm\', this.checked)" /> Ask before running</label>';
   x += '<div class="field"><label for="fGroup">Group</label><select class="in" id="fGroup" onchange="setField(\'group\', this.value)">' + groupOpts + '</select></div>';
@@ -562,7 +563,7 @@ function setField(field, value, typing) {
 function setTermView(v) { config.settings.terminalView = v; markDirty(); renderSide(); }
 function addCommand(group) {
   if (group == null && state.filter) group = state.filter;
-  var c = { id: uid(), name: 'New command', group: group || '', shell: 'cmd', command: '', mode: 'run', runAs: 0, showTerminal: true, showGeneral: false, confirm: false, color: '', description: '' };
+  var c = { id: uid(), name: 'New command', group: group || '', shell: 'cmd', command: '', mode: 'run', runAs: 0, showTerminal: true, showDesktop: false, showGeneral: false, confirm: false, color: '', description: '' };
   config.commands.push(c); state.selected = c.id; markDirty(); render();
   var f = document.getElementById('fName'); if (f) { f.focus(); f.select(); }
 }

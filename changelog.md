@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.3
+
+- **Desktop tab**: keys flagged *Show on Desktop* appear as a *Quick commands*
+  menu button in the desktop toolbar (same filter box and group chips as the
+  Terminal menu). The editor's *Show on* row and the `D` badge in the deck
+  carry the new flag.
+- The **⚡ Quick Commands** entry in the My Devices context menu no longer
+  wraps onto three lines: the menu widens to fit it while the entry is shown.
+
 ## 0.3.2
 
 - **Group chips** next to the keyword filter on the Terminal strip, in the
