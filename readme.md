@@ -9,7 +9,7 @@ One-click keys for the commands you type again and again — `ipconfig /all`, `g
 | Where | What |
 | --- | --- |
 | **Terminal tab** | A strip of keys under the toolbar, or a *Quick commands* menu button inside it. Each person can switch between the two; the administrator picks the default. From 5 keys on, a filter box appears (**/** focuses it, **Esc** clears, **Enter** runs the last key standing; in the menu, **↑/↓ + Enter** pick one); from 2 groups on, group chips narrow the keys to a group. |
-| **Desktop tab** | A *Quick commands* menu button in the desktop toolbar for the keys you flag "Show on Desktop", with the same filter box and chips as the Terminal menu. |
+| **Desktop tab** | The keys you flag "Show on Desktop", as a *Quick commands* menu button in the desktop toolbar or as a strip under it. Each person can switch; the administrator picks the default (menu, since the strip takes a line off the remote screen). Same filter box and chips as on the Terminal tab. |
 | **General tab** | A *Quick commands* panel for the keys you flag "Show on General", with the same filter box from 5 keys on. |
 | **Plugins › Quick Commands tab** | Every key for the device plus a run log with the output of everything you ran on this device - including group runs from My Devices. The log is kept per browser tab and survives a page reload. |
 | **My Server › Plugins › Quick Commands** | The editor: groups, drag-to-reorder, device scoping, import/export as JSON. The edit panel is drag-resizable (remembered per browser) and expands to a centered dialog with **⤢**; multi-line commands get line numbers. |

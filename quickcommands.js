@@ -50,6 +50,9 @@ module.exports.quickcommands = function (parent) {
         'qcToggleMenu',
         'qcCloseMenu',
         'qcSetTermView',
+        'qcSetDeskView',
+        'qcStripHtml',
+        'qcDeskFit',
         'qcOpenManage',
         'qcDialog',
         'qcDialogClose',
@@ -116,7 +119,7 @@ module.exports.quickcommands = function (parent) {
     obj.qcState = function () {
         var Q = pluginHandler.quickcommands;
         if (Q._st == null) {
-            Q._st = { config: null, canManage: false, pending: {}, log: [], menuOpen: false, hooked: false, nodeid: null, mdInit: false, cfgReq: false, cxNodeid: null, picker: null, bulk: null, tFilter: '', gFilter: '', mFilter: '', dFilter: '', mActive: -1, dActive: -1, tGroups: {}, gGroups: {}, mGroups: {}, dGroups: {} };
+            Q._st = { config: null, canManage: false, pending: {}, log: [], menuOpen: false, hooked: false, nodeid: null, mdInit: false, cfgReq: false, cxNodeid: null, picker: null, bulk: null, tFilter: '', gFilter: '', mFilter: '', dFilter: '', sFilter: '', mActive: -1, dActive: -1, tGroups: {}, gGroups: {}, mGroups: {}, dGroups: {}, sGroups: {}, deskFit: {} };
             // The run log survives a page reload (per browser tab). Runs that were
             // still going when the page reloaded cannot be picked up again - the
             // responseid is gone - so they are closed with a note.
@@ -158,7 +161,7 @@ module.exports.quickcommands = function (parent) {
                 if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
                 if ((typeof terminal != 'undefined') && (terminal != null)) return;
                 var f = null;
-                ['qcTermFilter', 'qcMenuFilter', 'qcDeskFilter', 'qcGenFilter'].forEach(function (id) {
+                ['qcTermFilter', 'qcMenuFilter', 'qcDeskFilter', 'qcDeskStripFilter', 'qcGenFilter'].forEach(function (id) {
                     var el = document.getElementById(id);
                     if (f == null && el && (el.offsetParent != null)) f = el;
                 });
@@ -236,6 +239,9 @@ module.exports.quickcommands = function (parent) {
 .qcMenuI:hover { background:#f4f8f7; } .night .qcMenuI:hover { background:#1d2422; }
 .qcMenuI .qcN { font-weight:bold; display:flex; align-items:center; gap:5px; white-space:nowrap; }
 .qcMenuWrap input.btn { line-height:1.2; }
+#qcDeskRow { flex-basis:100%; width:100%; clear:both; }
+#qcDeskRow .qcStrip { border-bottom:0; }
+.fulldesk #qcDeskRow { display:none; }
 .qcMenuI .qcC { font-family:"Cascadia Mono", Consolas, monospace; color:#5a6368; white-space:nowrap; max-width:200px; overflow:hidden; text-overflow:ellipsis; }
 .qcMenuI.danger .qcN { color:#C8362B; }
 .qcMenuI.danger:not(.termMode) .qcC { color:#C8362B; }
@@ -419,10 +425,10 @@ module.exports.quickcommands = function (parent) {
         return Q.qcEsc(s.substring(0, i)) + '<mark class="qcMk">' + Q.qcEsc(s.substr(i, q.length)) + '</mark>' + Q.qcEsc(s.substring(i + q.length));
     };
 
-    // Surfaces: 't' Terminal strip, 'm' Terminal menu, 'd' Desktop menu, 'g' General panel.
+    // Surfaces: 't' Terminal strip, 'm' Terminal menu, 's' Desktop strip, 'd' Desktop menu, 'g' General panel.
     obj.qcIsMenuKind = function (kind) { return (kind == 'm') || (kind == 'd'); };
-    obj.qcWhereOf = function (kind) { return (kind == 'g') ? 'general' : (kind == 'd') ? 'desktop' : 'terminal'; };
-    obj.qcFilterId = function (kind) { return (kind == 't') ? 'qcTermFilter' : (kind == 'g') ? 'qcGenFilter' : (kind == 'd') ? 'qcDeskFilter' : 'qcMenuFilter'; };
+    obj.qcWhereOf = function (kind) { return (kind == 'g') ? 'general' : ((kind == 'd') || (kind == 's')) ? 'desktop' : 'terminal'; };
+    obj.qcFilterId = function (kind) { return (kind == 't') ? 'qcTermFilter' : (kind == 'g') ? 'qcGenFilter' : (kind == 'd') ? 'qcDeskFilter' : (kind == 's') ? 'qcDeskStripFilter' : 'qcMenuFilter'; };
     // Selected group chips for a surface as a map name -> true; an empty map means every group.
     obj.qcGroupSel = function (kind) {
         var st = pluginHandler.quickcommands.qcState();
@@ -554,31 +560,38 @@ module.exports.quickcommands = function (parent) {
                 row = document.createElement('tr'); row.id = 'qcTermRow';
                 first.insertAdjacentElement('afterend', row);
             }
-            var q = canFilter ? (st.tFilter || '') : '';
-            var chips = Q.qcChipsHtml('t', cmds);
-            var shown = Q.qcFiltered('terminal', q, chips ? 't' : null);
-            var groups = Q.qcGroupsFor(shown);
-            var x = '<td><div class="qcStrip"><span class="qcLabel">Quick commands</span>';
-            if (canFilter) {
-                x += '<span class="qcFwrap"><input type="text" id="qcTermFilter" class="qcFin" placeholder="Filter" autocomplete="off" title="Filter commands by name, command or group (press / to jump here)" value="' + Q.qcEsc(q) + '" oninput="return pluginHandler.quickcommands.qcSetFilter(\'t\', this.value)" onkeydown="return pluginHandler.quickcommands.qcFilterKey(event, \'t\')" />'
-                    + (q ? '<span class="qcFclr" title="Clear filter" onclick="return pluginHandler.quickcommands.qcClearFilter(\'t\')">✕</span>' : '') + '</span>';
-            }
-            x += chips;
-            if (shown.length == 0) {
-                x += '<span class="qcEmptyF">No commands match ' + (q ? '"' + Q.qcEsc(q) + '"' : 'the chosen groups') + ' · <span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearFilter(\'t\')">Clear</span></span>';
-            }
-            groups.forEach(function (g) {
-                var gcol = (g.name && st.config.groupColors) ? st.config.groupColors[g.name] : null;
-                x += '<div class="qcGroup" title="' + Q.qcEsc(g.name) + '">';
-                if (gcol) x += '<span class="qcGL qcc-' + gcol + '">' + Q.qcEsc(g.name) + '</span>';
-                g.commands.forEach(function (c) { x += Q.qcKeyHtml(c, 'terminal', q); });
-                x += '</div>';
-            });
-            x += '<span class="qcGrow"></span><span class="qcLink" title="Move the commands into a menu in the toolbar" onclick="return pluginHandler.quickcommands.qcSetTermView(\'menu\')">Menu</span>' + (manage ? '&nbsp;&nbsp;' + manage : '') + '</div></td>';
-            row.innerHTML = x;
+            row.innerHTML = '<td>' + Q.qcStripHtml('t', cmds, canFilter, '<span class="qcLink" title="Move the commands into a menu in the toolbar" onclick="return pluginHandler.quickcommands.qcSetTermView(\'menu\')">Menu</span>' + (manage ? '&nbsp;&nbsp;' + manage : '')) + '</td>';
         }
     };
 
+
+    // The keypad strip (label, filter, chips, keys), shared by the Terminal and
+    // Desktop strips. tail is the links at the right end.
+    obj.qcStripHtml = function (kind, cmds, canFilter, tail) {
+        var Q = pluginHandler.quickcommands, st = Q.qcState();
+        var where = Q.qcWhereOf(kind), fid = Q.qcFilterId(kind);
+        var q = canFilter ? (st[kind + 'Filter'] || '') : '';
+        var chips = Q.qcChipsHtml(kind, cmds);
+        var shown = Q.qcFiltered(where, q, chips ? kind : null);
+        var groups = Q.qcGroupsFor(shown);
+        var x = '<div class="qcStrip"><span class="qcLabel">Quick commands</span>';
+        if (canFilter) {
+            x += '<span class="qcFwrap"><input type="text" id="' + fid + '" class="qcFin" placeholder="Filter" autocomplete="off" title="Filter commands by name, command or group (press / to jump here)" value="' + Q.qcEsc(q) + '" oninput="return pluginHandler.quickcommands.qcSetFilter(\'' + kind + '\', this.value)" onkeydown="return pluginHandler.quickcommands.qcFilterKey(event, \'' + kind + '\')" />'
+                + (q ? '<span class="qcFclr" title="Clear filter" onclick="return pluginHandler.quickcommands.qcClearFilter(\'' + kind + '\')">✕</span>' : '') + '</span>';
+        }
+        x += chips;
+        if (shown.length == 0) {
+            x += '<span class="qcEmptyF">No commands match ' + (q ? '"' + Q.qcEsc(q) + '"' : 'the chosen groups') + ' · <span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearFilter(\'' + kind + '\')">Clear</span></span>';
+        }
+        groups.forEach(function (g) {
+            var gcol = (g.name && st.config.groupColors) ? st.config.groupColors[g.name] : null;
+            x += '<div class="qcGroup" title="' + Q.qcEsc(g.name) + '">';
+            if (gcol) x += '<span class="qcGL qcc-' + gcol + '">' + Q.qcEsc(g.name) + '</span>';
+            g.commands.forEach(function (c) { x += Q.qcKeyHtml(c, where, q); });
+            x += '</div>';
+        });
+        return x + '<span class="qcGrow"></span>' + tail + '</div>';
+    };
 
     // The "Quick commands ▾" button plus its dropdown, shared by the Terminal
     // and Desktop menus. kind picks the filter state, footer the links at the bottom.
@@ -620,22 +633,69 @@ module.exports.quickcommands = function (parent) {
         return x;
     };
 
-    // Desktop tab: a menu button in the toolbar, next to the Actions button,
-    // for the keys flagged "Show on Desktop". (A strip has no room here - the
-    // desktop area is sized from the viewport.)
+    // Desktop tab: a strip at the bottom of the toolbar, or a menu button next to
+    // the Actions button. The desktop area is sized from the viewport by the core,
+    // so the strip's height is taken off it (qcDeskFit) to keep the page from scrolling.
     obj.qcRenderDesktop = function () {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
-        var host = document.getElementById('desktopCustomUpperRight');
-        if (host == null) return;
-        var wrap = document.getElementById('qcDeskMenuWrap');
+        var host = document.getElementById('desktopCustomUpperRight'), bar = document.getElementById('deskarea1');
+        if ((host == null) || (bar == null)) return;
+        var wrap = document.getElementById('qcDeskMenuWrap'), row = document.getElementById('qcDeskRow');
         var cmds = Q.qcVisible('desktop');
-        if ((st.config == null) || (cmds.length == 0)) { if (wrap) wrap.remove(); return; }
-        if (wrap == null) {
-            wrap = document.createElement('div'); wrap.id = 'qcDeskMenuWrap'; wrap.className = 'qcMenuWrap';
-            host.parentNode.insertBefore(wrap, host);
-        }
+        var view = getstore('qc_deskview', (st.config && st.config.settings) ? st.config.settings.desktopView : 'menu');
+        if ((st.config == null) || (cmds.length == 0)) { if (wrap) wrap.remove(); if (row) row.remove(); Q.qcDeskFit(); return; }
         var manage = st.canManage ? '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcOpenManage()">Manage…</span>' : '';
-        wrap.innerHTML = Q.qcMenuHtml('d', cmds, (cmds.length >= 5), manage || '<span class="qcHint">Output opens in a window when the command finishes</span>');
+        var canFilter = (cmds.length >= 5);
+        if (view == 'strip') {
+            if (wrap) { wrap.remove(); st.menuOpen = false; }
+            if (row == null) { row = document.createElement('div'); row.id = 'qcDeskRow'; bar.appendChild(row); }
+            row.innerHTML = Q.qcStripHtml('s', cmds, canFilter, '<span class="qcLink" title="Move the commands into a menu in the toolbar" onclick="return pluginHandler.quickcommands.qcSetDeskView(\'menu\')">Menu</span>' + (manage ? '&nbsp;&nbsp;' + manage : ''));
+        } else {
+            if (row) row.remove();
+            if (wrap == null) {
+                wrap = document.createElement('div'); wrap.id = 'qcDeskMenuWrap'; wrap.className = 'qcMenuWrap';
+                host.parentNode.insertBefore(wrap, host);
+            }
+            wrap.innerHTML = Q.qcMenuHtml('d', cmds, canFilter, '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcSetDeskView(\'strip\')">Show as strip</span>' + manage);
+        }
+        Q.qcDeskFit();
+    };
+
+    // Take the strip's height off the desktop area. The core writes the area's
+    // height as an inline calc() on every resize; values we wrote ourselves are
+    // recognised and skipped, anything else is treated as a fresh base value.
+    obj.qcDeskFit = function () {
+        var Q = pluginHandler.quickcommands, st = Q.qcState(), f = st.deskFit;
+        var area = document.getElementById('deskarea3x'), row = document.getElementById('qcDeskRow');
+        if (area == null) return;
+        if (f.obs == null) {
+            try {
+                f.obs = new MutationObserver(function () { pluginHandler.quickcommands.qcDeskFit(); });
+                f.obs.observe(area, { attributes: true, attributeFilter: ['style'] });
+                if (typeof ResizeObserver == 'function') { f.ro = new ResizeObserver(function () { pluginHandler.quickcommands.qcDeskFit(); }); }
+            } catch (e) { }
+        }
+        if (f.ro && row && (f.roRow !== row)) { try { if (f.roRow) f.ro.unobserve(f.roRow); f.ro.observe(row); f.roRow = row; } catch (e) { } }
+        var h = (row && (row.offsetParent != null)) ? row.offsetHeight : 0;
+        // The browser re-serialises calc() (e.g. "calc(-247px + 100vh)"), so the
+        // values are compared as numbers, not as strings.
+        var parse = function (v) {
+            if (!/^calc\(.*\)$/.test(v || '')) return null;
+            var out = { px: 0, vh: 0 }, re = /([+-])?\s*([\d.]+)(px|vh)/g, m, any = false;
+            while ((m = re.exec(v.replace(/^calc\(|\)$/g, ''))) != null) { out[m[3]] += parseFloat(m[2]) * ((m[1] == '-') ? -1 : 1); any = true; }
+            return any ? out : null;
+        };
+        var same = function (x, y) { return (x != null) && (y != null) && (Math.abs(x.px - y.px) < 0.5) && (Math.abs(x.vh - y.vh) < 0.5); };
+        if (f.base == null) f.base = {}; if (f.mine == null) f.mine = {};
+        ['height', 'max-height'].forEach(function (p) {
+            var cur = parse(area.style.getPropertyValue(p));
+            if (!same(cur, f.mine[p])) { f.base[p] = cur; } // written by the core (or not a calc, e.g. full screen)
+            var base = f.base[p];
+            if (base == null) { f.mine[p] = null; return; }
+            var want = { vh: base.vh, px: base.px - h };
+            if (!same(cur, want)) { area.style.setProperty(p, 'calc(' + want.vh + 'vh - ' + (-want.px) + 'px)'); }
+            f.mine[p] = want;
+        });
     };
 
     // Keyword filter state + focus restore. Renders replace the whole strip/menu/panel
@@ -644,7 +704,7 @@ module.exports.quickcommands = function (parent) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         if (Q.qcIsMenuKind(kind) && (v !== st[kind + 'Filter'])) { st[kind + 'Active'] = v ? 0 : -1; }
         st[kind + 'Filter'] = v;
-        if (kind == 'g') { Q.qcRenderGeneral(); } else if (kind == 'd') { Q.qcRenderDesktop(); } else { Q.qcRenderTerminal(); }
+        if (kind == 'g') { Q.qcRenderGeneral(); } else if ((kind == 'd') || (kind == 's')) { Q.qcRenderDesktop(); } else { Q.qcRenderTerminal(); }
         var f = document.getElementById(Q.qcFilterId(kind));
         // Give the field its focus back only when it had it (or is the natural
         // target after a chip click) - never yank focus from a running terminal.
@@ -711,6 +771,12 @@ module.exports.quickcommands = function (parent) {
         putstore('qc_termview', view);
         pluginHandler.quickcommands.qcCloseMenu();
         pluginHandler.quickcommands.qcRenderTerminal();
+        return false;
+    };
+    obj.qcSetDeskView = function (view) {
+        putstore('qc_deskview', view);
+        pluginHandler.quickcommands.qcCloseMenu();
+        pluginHandler.quickcommands.qcRenderDesktop();
         return false;
     };
     obj.qcOpenManage = function () {
@@ -1648,7 +1714,7 @@ module.exports.quickcommands = function (parent) {
     obj.defaultConfig = function () {
         return {
             version: 1,
-            settings: { terminalView: 'strip' },
+            settings: { terminalView: 'strip', desktopView: 'menu' },
             groups: ['Network', 'Policy', 'Power', 'Linux'],
             groupColors: { 'Network': 'blue', 'Power': 'red' },
             commands: [
@@ -1666,9 +1732,10 @@ module.exports.quickcommands = function (parent) {
 
     // Validates and normalises a configuration object coming from the admin page or an import.
     obj.sanitize = function (input) {
-        var clean = { version: 1, settings: { terminalView: 'strip' }, groups: [], groupColors: {}, commands: [] };
+        var clean = { version: 1, settings: { terminalView: 'strip', desktopView: 'menu' }, groups: [], groupColors: {}, commands: [] };
         if ((input == null) || (typeof input != 'object')) return clean;
         if ((input.settings != null) && (input.settings.terminalView == 'menu')) clean.settings.terminalView = 'menu';
+        if ((input.settings != null) && (input.settings.desktopView == 'strip')) clean.settings.desktopView = 'strip';
         var str = function (v, max) { if (typeof v != 'string') return ''; v = v.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, ''); return v.length > max ? v.substring(0, max) : v; };
         // A scope rule: {mode:'only'|'except', targets:[{t:'mesh'|'node'|'tag', id?, name?}]}.
         // 'all' (or anything malformed) means no rule and is stored as nothing at all.

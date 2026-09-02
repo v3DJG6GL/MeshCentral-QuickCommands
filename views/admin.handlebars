@@ -223,7 +223,7 @@ function byId(id) { for (var i = 0; i < config.commands.length; i++) { if (confi
 function normalize() {
   if (!Array.isArray(config.groups)) config.groups = [];
   if (!Array.isArray(config.commands)) config.commands = [];
-  if (config.settings == null) config.settings = { terminalView: 'strip' };
+  if (config.settings == null) config.settings = { terminalView: 'strip', desktopView: 'menu' };
   if ((config.groupColors == null) || (typeof config.groupColors != 'object')) config.groupColors = {};
   if ((config.groupScopes == null) || (typeof config.groupScopes != 'object')) config.groupScopes = {};
   config.commands.forEach(function (c) { if (c.group && config.groups.indexOf(c.group) == -1) config.groups.push(c.group); });
@@ -475,6 +475,8 @@ function renderSide() {
   x += '<button class="it add" onclick="addGroup()"><span>+ New group</span></button>';
   x += '<div class="grow"></div><div class="h">Terminal tab</div>';
   x += '<div class="setting"><label>Default view for everyone</label><div class="seg"><button class="' + (config.settings.terminalView != 'menu' ? 'on' : '') + '" onclick="setTermView(\'strip\')">Keypad strip</button><button class="' + (config.settings.terminalView == 'menu' ? 'on' : '') + '" onclick="setTermView(\'menu\')">Menu</button></div><span class="hint">Each person can still switch for themselves.</span></div>';
+  x += '<div class="h" style="margin-top:10px">Desktop tab</div>';
+  x += '<div class="setting"><label>Default view for everyone</label><div class="seg"><button class="' + (config.settings.desktopView == 'strip' ? 'on' : '') + '" onclick="setDeskView(\'strip\')">Keypad strip</button><button class="' + (config.settings.desktopView != 'strip' ? 'on' : '') + '" onclick="setDeskView(\'menu\')">Menu</button></div><span class="hint">The strip takes a line off the remote screen; each person can still switch.</span></div>';
   x += '<div class="h" style="margin-top:10px">Reset</div><button class="it" onclick="loadDefaults()"><span>Load example commands</span></button>';
   document.getElementById('side').innerHTML = x;
 }
@@ -538,7 +540,7 @@ function renderDrawer() {
     x += '<div class="field"><label>Run as</label>' + seg('runAs', [{ v: 0, l: 'Agent (SYSTEM/root)' }, { v: 1, l: 'User if signed in' }, { v: 2, l: 'User only' }]) + '</div>';
   }
   if (c.mode == 'terminal' && c.shell == 'agent') { x += '<div class="warn">Agent console commands cannot be typed into a terminal. Switch to "Run, show output".</div>'; }
-  x += '<div class="field"><label>Show on</label><div class="row"><label class="chk"><input type="checkbox" ' + (c.showGeneral ? 'checked' : '') + ' onchange="setField(\'showGeneral\', this.checked)" /> General tab</label><label class="chk"><input type="checkbox" ' + (c.showDesktop ? 'checked' : '') + ' onchange="setField(\'showDesktop\', this.checked)" /> Desktop tab</label><label class="chk"><input type="checkbox" ' + (c.showTerminal !== false ? 'checked' : '') + ' onchange="setField(\'showTerminal\', this.checked)" /> Terminal tab</label></div><span class="hint">Desktop shows the keys as a menu button in its toolbar. The device\'s Plugins tab always lists every command.</span></div>';
+  x += '<div class="field"><label>Show on</label><div class="row"><label class="chk"><input type="checkbox" ' + (c.showGeneral ? 'checked' : '') + ' onchange="setField(\'showGeneral\', this.checked)" /> General tab</label><label class="chk"><input type="checkbox" ' + (c.showDesktop ? 'checked' : '') + ' onchange="setField(\'showDesktop\', this.checked)" /> Desktop tab</label><label class="chk"><input type="checkbox" ' + (c.showTerminal !== false ? 'checked' : '') + ' onchange="setField(\'showTerminal\', this.checked)" /> Terminal tab</label></div><span class="hint">The device\'s Plugins tab always lists every command.</span></div>';
   x += scopeEditorHtml(false);
   x += '<label class="chk"><input type="checkbox" ' + (c.confirm ? 'checked' : '') + ' onchange="setField(\'confirm\', this.checked)" /> Ask before running</label>';
   x += '<div class="field"><label for="fGroup">Group</label><select class="in" id="fGroup" onchange="setField(\'group\', this.value)">' + groupOpts + '</select></div>';
@@ -561,6 +563,7 @@ function setField(field, value, typing) {
   } else { render(); }
 }
 function setTermView(v) { config.settings.terminalView = v; markDirty(); renderSide(); }
+function setDeskView(v) { config.settings.desktopView = v; markDirty(); renderSide(); }
 function addCommand(group) {
   if (group == null && state.filter) group = state.filter;
   var c = { id: uid(), name: 'New command', group: group || '', shell: 'cmd', command: '', mode: 'run', runAs: 0, showTerminal: true, showDesktop: false, showGeneral: false, confirm: false, color: '', description: '' };

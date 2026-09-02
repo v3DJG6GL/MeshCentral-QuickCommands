@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.5
+
+- **Desktop tab strip**: the Desktop keys can be shown as a keypad strip under
+  the toolbar, like on the Terminal tab (*Show as strip* in the menu, *Menu*
+  on the strip). The remote screen area shrinks by the strip's height, so the
+  page never scrolls; in full screen the strip is hidden. The editor got a
+  *Desktop tab › Default view for everyone* setting (default: menu).
+
 ## 0.3.4
 
 - The editor lists *Show on* as General, Desktop, Terminal (checkboxes, the
