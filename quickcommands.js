@@ -91,10 +91,15 @@ module.exports.quickcommands = function (parent) {
         'qcBulkRowUpdate',
         'qcBulkShow',
         'qcBulkCopy',
-        'qcBulkPillUpdate',
         'qcBulkCounts',
-        'qcBulkCtrlHtml',
-        'qcBulkCtrlClick',
+        'qcChipInfo',
+        'qcChipHtml',
+        'qcChipClick',
+        'qcChipTick',
+        'qcRenderChips',
+        'qcPeekShow',
+        'qcPeekHide',
+        'qcPeekLines',
         'qcLogSave',
         'qcCxUpdate',
         'qcCxToggleFly',
@@ -119,7 +124,7 @@ module.exports.quickcommands = function (parent) {
     obj.qcState = function () {
         var Q = pluginHandler.quickcommands;
         if (Q._st == null) {
-            Q._st = { config: null, canManage: false, pending: {}, log: [], menuOpen: false, hooked: false, nodeid: null, mdInit: false, cfgReq: false, cxNodeid: null, picker: null, bulk: null, tFilter: '', gFilter: '', mFilter: '', dFilter: '', sFilter: '', mActive: -1, dActive: -1, tGroups: {}, gGroups: {}, mGroups: {}, dGroups: {}, sGroups: {}, deskFit: {} };
+            Q._st = { config: null, canManage: false, pending: {}, log: [], menuOpen: false, hooked: false, nodeid: null, mdInit: false, cfgReq: false, cxNodeid: null, picker: null, bulk: null, tFilter: '', gFilter: '', mFilter: '', dFilter: '', sFilter: '', mActive: -1, dActive: -1, tGroups: {}, gGroups: {}, mGroups: {}, dGroups: {}, sGroups: {}, deskFit: {}, chipTimer: null };
             // The run log survives a page reload (per browser tab). Runs that were
             // still going when the page reloaded cannot be picked up again - the
             // responseid is gone - so they are closed with a note.
@@ -127,7 +132,7 @@ module.exports.quickcommands = function (parent) {
                 var saved = sessionStorage.getItem('qcRunLog');
                 if (saved) {
                     Q._st.log = JSON.parse(saved);
-                    Q._st.log.forEach(function (e) { if (e.state == 'running') { e.state = 'error'; e.error = 'the page was reloaded while it ran'; } });
+                    Q._st.log.forEach(function (e) { if (e.state == 'running') { e.state = 'error'; e.error = 'the page was reloaded while it ran'; e.seen = false; } else { e.seen = true; } });
                 }
             } catch (e) { }
         }
@@ -306,7 +311,7 @@ module.exports.quickcommands = function (parent) {
 .night .qcGL { color:var(--qccn); }
 .qcGL::before { content:""; width:7px; height:7px; border-radius:2px; background:var(--qcc); }
 .qcDot { display:inline-block; width:7px; height:7px; border-radius:2px; margin-right:5px; background:var(--qcc); }
-.qcDevBtn { display:inline-flex; align-items:center; gap:6px; margin:0 4px; padding:2px 10px 3px; border:1px solid #8f9a9f; border-bottom-width:3px; border-radius:4px; background:#fff; color:#1a1a1a; font-family:inherit; font-size:12px; font-weight:bold; cursor:pointer; vertical-align:middle; }
+.qcDevBtn { display:inline-flex; align-items:center; gap:6px; margin:0; padding:2px 10px 3px; border:1px solid #8f9a9f; border-bottom-width:3px; border-radius:4px; background:#fff; color:#1a1a1a; font-family:inherit; font-size:12px; font-weight:bold; cursor:pointer; vertical-align:middle; }
 .qcDevBtn .qcZap { color:#B8741A; }
 .qcDevBtn:hover:enabled { background:#f4f8f7; }
 .qcDevBtn:active:enabled { transform:translateY(1px); border-bottom-width:2px; }
@@ -341,30 +346,33 @@ module.exports.quickcommands = function (parent) {
 #contextMenu.qcWide { max-width:215px; }
 #qcCxFly { position:fixed; z-index:1001; min-width:260px; max-height:60vh; overflow:auto; background:#fff; border:1px solid #8f9a9f; box-shadow:0 4px 14px rgba(0,0,0,0.25); font-size:12px; text-align:left; color:#000; display:none; line-height:normal; }
 .night #qcCxFly { background:#111; border-color:#555; color:#ddd; }
-/* Shared parts of the results controls (toolbar button + floating pill). */
-.qcRN { font-weight:600; overflow:hidden; text-overflow:ellipsis; }
-.qcRC { font-family:"Cascadia Mono", Consolas, monospace; font-size:12px; }
-.qcRCg { color:#2C8C5A; } .qcRCr { color:#C8362B; }
-.night .qcRCg, .qcResBtBs .qcRCg { color:#5CB88A; } .night .qcRCr, .qcResBtBs .qcRCr { color:#E06459; }
-.qcRX { margin-left:2px; padding:0 4px; color:#5a6368; font-weight:bold; border-radius:6px; }
-.qcRX:hover { background:#e3e7e5; color:#000; }
-.night .qcRX, .qcResBtBs .qcRX { color:#98A3AD; }
-.night .qcRX:hover, .qcResBtBs .qcRX:hover { background:rgba(255,255,255,0.14); color:#fff; }
-/* Toolbar results button, classic UI. */
-.qcResBt { display:inline-flex; align-items:center; gap:6px; margin:0 4px 0 0; padding:2px 9px 3px; border:1px solid rgba(184,116,26,0.55); border-radius:4px; background:#fff; color:#1a1a1a; font-family:inherit; font-size:12px; cursor:pointer; vertical-align:middle; white-space:nowrap; }
-.qcResBt:hover { background:#fdf8f0; }
-.qcResBt .qcZap { color:#B8741A; font-weight:bold; }
-.night .qcResBt { background:#181d1b; border-color:rgba(224,163,60,0.5); color:#ddd; }
-.night .qcResBt:hover { background:#1d2422; }
-/* Toolbar results button, modern UI: Bootstrap classes carry size and theme. */
-.qcResBtBs { display:inline-flex; align-items:center; gap:6px; border-color:rgba(255,197,51,0.45) !important; white-space:nowrap; }
-.qcResBtBs .qcZap { color:#FFC533; }
-/* Floating pill (every page except My Devices). */
-#qcBulkPill { position:fixed; right:18px; bottom:18px; z-index:1000; display:none; align-items:center; gap:6px; padding:6px 11px 7px; border:1px solid rgba(184,116,26,0.55); border-radius:16px; background:#fff; color:#1a1a1a; font-size:12px; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,0.25); max-width:340px; white-space:nowrap; }
-#qcBulkPill .qcZap { color:#B8741A; font-weight:bold; }
-#qcBulkPill:hover { background:#fdf8f0; }
-.night #qcBulkPill { background:#181d1b; border-color:rgba(224,163,60,0.5); color:#ddd; }
-.night #qcBulkPill:hover { background:#1d2422; }
+/* The run chip: one live status control next to the plugin's toolbar button. */
+.qcChipSlot { display:inline-flex; align-items:center; vertical-align:middle; }
+.qcChip { display:inline-flex; align-items:center; gap:6px; margin:0 6px 0 0; padding:2px 8px 3px 7px; border:1px solid #D9A24A; border-radius:14px; background:#FFF4DC; color:#1a1a1a; font-family:inherit; font-size:12px; line-height:16px; font-weight:normal; cursor:pointer; vertical-align:middle; white-space:nowrap; max-width:300px; text-align:left; }
+.qcChip .qcChipN { font-weight:600; overflow:hidden; text-overflow:ellipsis; }
+.qcChip .qcChipT { font-family:"Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace; font-size:11px; color:#5a4a1e; font-variant-numeric:tabular-nums; }
+.qcChip .qcChipG { width:14px; text-align:center; font-weight:bold; flex:none; }
+.qcChip .qcChipX { margin-left:2px; padding:0 4px; border-radius:7px; color:#6b6b6b; font-weight:bold; line-height:1; }
+.qcChip .qcChipX:hover { background:rgba(0,0,0,0.12); color:#000; }
+.qcChip:focus-visible { outline:2px solid #1E6BD6; outline-offset:1px; }
+/* Modern UI: same height as a Bootstrap btn-sm. */
+.qcChipBs { min-height:31px; padding:0 10px 0 9px; border-radius:16px; font-size:13px; }
+.qcChip.ok { background:#E4F3EA; border-color:#79B999; } .qcChip.ok .qcChipT { color:#1F6A44; } .qcChip.ok .qcChipG { color:#2C8C5A; }
+.qcChip.err { background:#FBE7E4; border-color:#DE8A82; } .qcChip.err .qcChipT { color:#9E2A21; } .qcChip.err .qcChipG { color:#C8362B; }
+.night .qcChip { color:#F3E9D2; background:#3A3013; border-color:#8A6420; } .night .qcChip .qcChipT { color:#E0A33C; }
+.night .qcChip .qcChipX { color:#B9B0A0; } .night .qcChip .qcChipX:hover { background:rgba(255,255,255,0.15); color:#fff; }
+.night .qcChip.ok { background:#153524; border-color:#2C8C5A; color:#DDF2E5; } .night .qcChip.ok .qcChipT { color:#5CB88A; } .night .qcChip.ok .qcChipG { color:#5CB88A; }
+.night .qcChip.err { background:#3E1A17; border-color:#C8362B; color:#F7DDD9; } .night .qcChip.err .qcChipT { color:#E06459; } .night .qcChip.err .qcChipG { color:#E06459; }
+.night .qcChip .qcSpin { border-color:#E0A33C; border-top-color:transparent; }
+@media (prefers-reduced-motion: reduce) { .qcChip .qcSpin { border-top-color:#B8741A; opacity:0.6; } }
+/* Output peek under the chip: the last lines of what the command printed. */
+#qcPeek { position:fixed; z-index:1002; display:none; max-width:min(560px, 90vw); padding:6px 9px; background:#0c1210; color:#c9d4ce; border:1px solid #2a3330; border-radius:3px; box-shadow:0 4px 14px rgba(0,0,0,0.35); font-family:"Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace; font-size:11px; line-height:14px; white-space:pre; overflow:hidden; text-overflow:ellipsis; text-align:left; pointer-events:none; }
+#qcPeek .qcPeekH { color:#8b9591; margin-bottom:3px; font-family:inherit; }
+#qcPeek .qcPeekOk { color:#5CB88A; } #qcPeek .qcPeekErr { color:#E06459; } #qcPeek .qcPeekRun { color:#E0A33C; }
+/* My Devices: chip + button sit at the right edge of the toolbar, like on the device tabs. */
+#qcDevWrap { display:inline-flex; align-items:center; margin-left:auto; margin-right:8px; }
+#devsCustomUIBar.qcRight { margin-left:auto; display:inline-flex; align-items:center; }
+.qcDevWrapClassic { float:right; }
 `;
         // Fixed palette; each entry is [key stripe, group label on light, group label on night].
         var pal = { red: ['#D2493D', '#B03A30', '#E06459'], orange: ['#D97A1F', '#A85E14', '#E89A4C'], amber: ['#C9A227', '#8F7418', '#D9B84A'], green: ['#3AA06A', '#2C7A50', '#5CB88A'], teal: ['#2E9E9B', '#23807D', '#4FB8B5'], blue: ['#3D7DD8', '#2D62B0', '#5B94E4'], purple: ['#8A63D2', '#6F4DB0', '#A585E0'], pink: ['#C75B9B', '#A34579', '#D67FB2'], slate: ['#6B7280', '#4E5560', '#98A3AD'] };
@@ -529,7 +537,8 @@ module.exports.quickcommands = function (parent) {
         try { Q.qcRenderPluginTab(); } catch (e) { console.log('quickcommands tab render', e); }
     };
 
-    // Terminal tab: either a strip under the toolbar or a menu button inside it.
+    // Terminal tab: either a strip under the toolbar or a menu button inside it,
+    // plus the run chip left of Actions in both views.
     obj.qcRenderTerminal = function () {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         var table = document.querySelector('#termTable table');
@@ -543,17 +552,23 @@ module.exports.quickcommands = function (parent) {
         // The keyword filter earns its space once the device has 5+ keys.
         var canFilter = (cmds.length >= 5);
 
-        if (view == 'menu') {
-            if (row) row.remove();
+        // The toolbar wrapper holds the run chip in both views and the menu
+        // button in the menu view; it sits left of Actions (both UIs).
+        var chip = Q.qcChipHtml('node');
+        if ((view == 'menu') || chip) {
             if (wrap == null) {
-                var host = document.getElementById('terminalCustomUpperRight');
+                var host = document.getElementById('termActionsBtn') || document.getElementById('terminalCustomUpperRight');
                 if (host == null) return;
                 wrap = document.createElement('div'); wrap.id = 'qcTermMenuWrap'; wrap.className = 'qcMenuWrap';
                 host.parentNode.insertBefore(wrap, host);
             }
-            wrap.innerHTML = Q.qcMenuHtml('m', cmds, canFilter, '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcSetTermView(\'strip\')">Show as strip</span>' + manage);
+        } else if (wrap) { wrap.remove(); wrap = null; }
+        if (view == 'menu') {
+            if (row) row.remove();
+            wrap.innerHTML = '<span class="qcChipSlot" data-scope="node">' + chip + '</span>' + Q.qcMenuHtml('m', cmds, canFilter, '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcSetTermView(\'strip\')">Show as strip</span>' + manage);
         } else {
-            if (wrap) { wrap.remove(); st.menuOpen = false; }
+            if (wrap) { wrap.innerHTML = '<span class="qcChipSlot" data-scope="node">' + chip + '</span>'; }
+            st.menuOpen = false;
             if (row == null) {
                 var first = table.querySelector('tr');
                 if (first == null) return;
@@ -646,17 +661,22 @@ module.exports.quickcommands = function (parent) {
         if ((st.config == null) || (cmds.length == 0)) { if (wrap) wrap.remove(); if (row) row.remove(); Q.qcDeskFit(); return; }
         var manage = st.canManage ? '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcOpenManage()">Manage…</span>' : '';
         var canFilter = (cmds.length >= 5);
+        var chip = Q.qcChipHtml('node');
+        if ((view == 'menu') || chip) {
+            if (wrap == null) {
+                var before = document.getElementById('deskActionsBtn') || host;
+                wrap = document.createElement('div'); wrap.id = 'qcDeskMenuWrap'; wrap.className = 'qcMenuWrap';
+                before.parentNode.insertBefore(wrap, before);
+            }
+        } else if (wrap) { wrap.remove(); wrap = null; }
         if (view == 'strip') {
-            if (wrap) { wrap.remove(); st.menuOpen = false; }
+            if (wrap) { wrap.innerHTML = '<span class="qcChipSlot" data-scope="node">' + chip + '</span>'; }
+            st.menuOpen = false;
             if (row == null) { row = document.createElement('div'); row.id = 'qcDeskRow'; bar.appendChild(row); }
             row.innerHTML = Q.qcStripHtml('s', cmds, canFilter, '<span class="qcLink" title="Move the commands into a menu in the toolbar" onclick="return pluginHandler.quickcommands.qcSetDeskView(\'menu\')">Menu</span>' + (manage ? '&nbsp;&nbsp;' + manage : ''));
         } else {
             if (row) row.remove();
-            if (wrap == null) {
-                wrap = document.createElement('div'); wrap.id = 'qcDeskMenuWrap'; wrap.className = 'qcMenuWrap';
-                host.parentNode.insertBefore(wrap, host);
-            }
-            wrap.innerHTML = Q.qcMenuHtml('d', cmds, canFilter, '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcSetDeskView(\'strip\')">Show as strip</span>' + manage);
+            wrap.innerHTML = '<span class="qcChipSlot" data-scope="node">' + chip + '</span>' + Q.qcMenuHtml('d', cmds, canFilter, '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcSetDeskView(\'strip\')">Show as strip</span>' + manage);
         }
         Q.qcDeskFit();
     };
@@ -798,7 +818,7 @@ module.exports.quickcommands = function (parent) {
         var q = canFilter ? (st.gFilter || '') : '';
         var chips = Q.qcChipsHtml('g', cmds);
         var shown = Q.qcFiltered('general', q, chips ? 'g' : null);
-        var x = '<div class="qcPanel"><div class="qcPanelH"><span>Quick commands</span><span class="qcHint">Output opens in a window when the command finishes</span><span class="qcGrow"></span>';
+        var x = '<div class="qcPanel"><div class="qcPanelH"><span>Quick commands</span><span class="qcChipSlot" data-scope="node">' + Q.qcChipHtml('node') + '</span><span class="qcHint">Output opens in a window when the command finishes</span><span class="qcGrow"></span>';
         x += chips;
         if (canFilter) {
             x += '<span class="qcFwrap"><input type="text" id="qcGenFilter" class="qcFin" placeholder="Filter" autocomplete="off" title="Filter commands by name, command or group (press / to jump here)" value="' + Q.qcEsc(q) + '" oninput="return pluginHandler.quickcommands.qcSetFilter(\'g\', this.value)" onkeydown="return pluginHandler.quickcommands.qcFilterKey(event, \'g\')" />'
@@ -973,6 +993,7 @@ module.exports.quickcommands = function (parent) {
         else { entry.timer = setTimeout(function () { var Q2 = pluginHandler.quickcommands, e2 = Q2.qcState().pending[rid]; if (e2) e2.canKill = true; Q2.qcFinish(rid, 'No reply from the agent after 5 minutes. The command is probably still running or waiting for input on the device and blocks further run commands. "Free the agent" kills it on the device.'); }, 300000); }
         meshserver.send({ action: 'runcommands', nodeids: [currentNode._id], type: types[cmd.shell] || 1, cmds: Q.qcCmds(cmd), runAsUser: (cmd.runAs | 0), reply: true, responseid: rid });
         Q.qcRenderAll();
+        Q.qcChipTick(true);
     };
 
     // Picks up results from the server message stream.
@@ -1035,12 +1056,13 @@ module.exports.quickcommands = function (parent) {
                 if (btns) { btns.innerHTML = Q.qcButtonsHtml(e, st.log.indexOf(e)); }
                 var ir = document.getElementById('qcInRow');
                 if (ir) { ir.style.display = 'none'; }
-                if (e.bulk) { Q.qcBulkPillUpdate(); }
+                if (e.bulk) { Q.qcRenderChips(); }
                 return;
             }
         }
         // A run from the My Devices page updates its row in the results dialog instead.
-        if (e.bulk) { Q.qcBulkRowUpdate(e); return; }
+        if (e.bulk) { Q.qcBulkRowUpdate(e); Q.qcRenderChips(); return; }
+        Q.qcRenderChips();
         // Show the result when the user is still looking at this device.
         if ((currentNode != null) && (st.nodeid == currentNode._id) && (xxcurrentView >= 10) && (xxcurrentView < 20) && !xxdialogMode) { Q.qcShowOutput(st.log.indexOf(e)); }
     };
@@ -1071,6 +1093,7 @@ module.exports.quickcommands = function (parent) {
         e.timer = setTimeout(function () { pluginHandler.quickcommands.qcFinish(rid, 'Cancelled, but the agent did not confirm the kill (it needs agent console rights and a connected agent). The command may still be running and blocks further run commands until it ends or the agent restarts.'); }, 10000);
         var pre = document.getElementById('qcOutPre');
         if (pre && (pre.getAttribute('data-rid') == rid)) { var s2 = document.getElementById('qcOutStatus'); if (s2) s2.innerHTML = '<span class="qcMuted">cancelling…</span>'; }
+        Q.qcRenderChips();
         return false;
     };
 
@@ -1140,6 +1163,7 @@ module.exports.quickcommands = function (parent) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         var e = st.log[idx]; if (e == null) return false;
         if (xxdialogMode) return false;
+        if (e.state == 'done') { e.seen = true; Q.qcRenderChips(); }
         var status = (e.state == 'error') ? '<span class="qcErr">' + Q.qcEsc(e.error) + '</span>' : (e.state == 'running' ? '<span class="qcMuted">running…</span>' : (e.state == 'typed' ? '<span class="qcMuted">typed into terminal</span>' : '<span class="qcOk">' + Q.qcFmtMs(e.ms) + '</span>'));
         var runAs = ['as agent', 'as user if signed in', 'as user'][e.cmd.runAs | 0] || '';
         var body = (e.output && e.output.length) ? Q.qcEsc(e.output) : '<span class="qcMuted">(no output' + (e.state == 'running' ? ' yet' : (e.cmd.shell == 'agent' ? ' captured; see the Console tab' : '')) + ')</span>';
@@ -1225,29 +1249,22 @@ module.exports.quickcommands = function (parent) {
                 b.innerHTML = '<span class="qcZap">⚡</span>Quick Commands';
                 b.disabled = ga.disabled;
                 b.onclick = function () { return pluginHandler.quickcommands.qcDevicesBtnClick(); };
-                ga.parentNode.insertBefore(b, ga.nextSibling);
+                if (typeof showModal === 'function') { b.className = b.className.replace(' me-1', ''); }
+                // Chip + button sit at the right edge of the toolbar (same spot as on
+                // the device tabs). The core's plugin anchor is the last child of the
+                // toolbar in both UIs; the wrapper is pushed right from there.
+                var wrap = document.createElement('span'); wrap.id = 'qcDevWrap';
+                wrap.innerHTML = '<span class="qcChipSlot" data-scope="bulk"></span>';
+                wrap.appendChild(b);
+                var anchor = document.getElementById('devsCustomUIBar');
+                if (anchor && (anchor.parentNode === ga.parentNode)) {
+                    // The modern toolbar is a flex row sized to its content; let it
+                    // take the full width so "right edge" means the page's right edge.
+                    if (typeof showModal === 'function') { anchor.classList.add('qcRight'); ga.parentNode.style.flexGrow = '1'; } else { anchor.classList.add('qcDevWrapClassic'); }
+                    anchor.appendChild(wrap);
+                } else { ga.parentNode.insertBefore(wrap, ga.nextSibling); }
                 // The core enables/disables Group Action from the selection count; mirror it.
                 new MutationObserver(function () { b.disabled = ga.disabled; }).observe(ga, { attributes: true, attributeFilter: ['disabled'] });
-                // Results button: appears next to it while a group run is around
-                // (the floating pill takes over on every other page).
-                var rb = document.createElement('button');
-                rb.id = 'qcResultsBtn'; rb.type = 'button';
-                rb.className = (typeof showModal === 'function') ? ('btn btn-secondary me-1 btn-sm qcResBtBs') : 'qcResBt';
-                rb.title = 'Group run results';
-                rb.style.display = 'none';
-                rb.onclick = function (ev) { return pluginHandler.quickcommands.qcBulkCtrlClick(ev); };
-                b.parentNode.insertBefore(rb, b.nextSibling);
-            }
-        } catch (e) { }
-        // The pill hides on My Devices and shows elsewhere; follow view changes.
-        try {
-            if (typeof go == 'function') {
-                var origGo = go;
-                window.go = function () {
-                    var r = origGo.apply(this, arguments);
-                    try { pluginHandler.quickcommands.qcBulkPillUpdate(); } catch (e) { }
-                    return r;
-                };
             }
         } catch (e) { }
         // 1A: one more operation in the native Group Action dialog.
@@ -1451,7 +1468,8 @@ module.exports.quickcommands = function (parent) {
             meshserver.send({ action: 'runcommands', nodeids: [id], type: types[cmd.shell] || 1, cmds: Q.qcCmds(cmd), runAsUser: (cmd.runAs | 0), reply: true, responseid: rid });
         });
         Q.qcLogSave();
-        Q.qcBulkPillUpdate();
+        Q.qcRenderChips();
+        Q.qcChipTick(true);
         // A confirm dialog may just be hiding; give the Bootstrap modal its gap.
         setTimeout(function () { pluginHandler.quickcommands.qcBulkResults(); }, 500);
         return false;
@@ -1465,50 +1483,158 @@ module.exports.quickcommands = function (parent) {
         return { run: run, ok: ok, err: err };
     };
 
-    // Shared content of the results controls (toolbar button on My Devices, the
-    // floating pill everywhere else): spinner or ⚡, the command, live counts, ×.
-    obj.qcBulkCtrlHtml = function () {
-        var Q = pluginHandler.quickcommands, st = Q.qcState(), b = st.bulk;
-        var c = Q.qcBulkCounts(); if (c == null) return '';
-        var name = (b.cmd.name.length > 14) ? (b.cmd.name.substring(0, 14) + '…') : b.cmd.name;
-        var x = c.run ? '<span class="qcSpin"></span>' : '<span class="qcZap">⚡</span>';
-        x += '<span class="qcRN">' + Q.qcEsc(name) + '</span><span class="qcRC">';
-        if (c.ok || !c.run) { x += '<span class="qcRCg">' + c.ok + '✓</span>'; }
-        if (c.run) { x += (c.ok ? '&nbsp;' : '') + c.run + '…'; }
-        if (c.err) { x += '&nbsp;<span class="qcRCr">' + c.err + '✗</span>'; }
-        x += '</span><span class="qcRX" title="Dismiss">×</span>';
-        return x;
-    };
-
-    // One click handler for both controls: × dismisses, the rest re-opens the overview.
-    obj.qcBulkCtrlClick = function (ev) {
-        var Q = pluginHandler.quickcommands;
-        if (ev && ev.target && ev.target.closest && ev.target.closest('.qcRX')) { Q.qcState().bulk = null; Q.qcBulkPillUpdate(); return false; }
-        if (typeof xxdialogMode != 'undefined' && xxdialogMode) return false;
-        return Q.qcBulkResults();
-    };
-
-    // Keep the results controls in sync: on My Devices the toolbar button shows
-    // the run, on every other page the floating pill does.
-    obj.qcBulkPillUpdate = function () {
+    // ------------------------------------------------------------------
+    //  The run chip. scope 'node' covers the runs of the device on screen
+    //  (single runs and group-run rows alike), scope 'bulk' the group run
+    //  started from My Devices. Returns null when there is nothing to show.
+    // ------------------------------------------------------------------
+    obj.qcChipInfo = function (scope) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
-        var has = (st.bulk != null);
-        var onDevices = (typeof xxcurrentView != 'undefined') && (xxcurrentView == 1);
-        var tb = document.getElementById('qcResultsBtn');
-        if (tb) {
-            if (has) { tb.innerHTML = Q.qcBulkCtrlHtml(); tb.style.display = 'inline-flex'; }
-            else { tb.style.display = 'none'; }
+        var short = function (err) {
+            err = err || '';
+            if (/already busy|still busy/i.test(err)) return 'agent busy';
+            if (/not connected/i.test(err)) return 'not connected';
+            if (/No reply/i.test(err)) return 'no reply';
+            if (/^Cancelled/i.test(err)) return 'cancelled';
+            if (/reloaded/i.test(err)) return 'reloaded';
+            if (/Access denied/i.test(err)) return 'access denied';
+            return 'failed';
+        };
+        var fmtEl = function (start) { var sec = Math.max(0, Math.floor((Date.now() - start) / 1000)); return Math.floor(sec / 60) + ':' + ('0' + (sec % 60)).slice(-2); };
+        if (scope == 'bulk') {
+            var b = st.bulk; if (b == null) return null;
+            var c = Q.qcBulkCounts(), total = b.runs.length, one = (total == 1) ? b.byRid[b.runs[0]] : null;
+            var oldest = null; b.runs.forEach(function (rid) { var e = b.byRid[rid]; if ((e.state == 'running') && ((oldest == null) || (e.start < oldest.start))) oldest = e; });
+            var target = one || null;
+            if (c.run) {
+                return { state: 'running', name: b.cmd.name, time: (one ? (one.cancelling ? 'cancelling…' : (one.name + ' · ' + fmtEl(one.start))) : ((c.ok + c.err) + '/' + total + ' · ' + fmtEl(oldest.start))), entry: target, bulk: true, live: oldest, title: b.cmd.name + ' on ' + total + ' device' + (total == 1 ? '' : 's') + ' - click for the results' };
+            }
+            if (total == 1 && one && one.seen) return null;
+            if (c.err) return { state: 'err', name: b.cmd.name, time: (one ? short(one.error) : (c.err + ' of ' + total + ' failed')), entry: target, bulk: true, title: 'Click for the results, × clears the run' };
+            return { state: 'ok', name: b.cmd.name, time: (one ? Q.qcFmtMs(one.ms) : (c.ok + ' done')), entry: target, bulk: true, title: 'Click for the results, × clears the run' };
         }
-        var p = document.getElementById('qcBulkPill');
-        if (!has || (onDevices && (tb != null))) { if (p) { p.style.display = 'none'; } return; }
-        if (p == null) {
-            p = document.createElement('div');
-            p.id = 'qcBulkPill';
-            p.onclick = function (ev) { return pluginHandler.quickcommands.qcBulkCtrlClick(ev); };
-            document.body.appendChild(p);
+        if (st.nodeid == null) return null;
+        var pend = [], fin = [];
+        for (var k in st.pending) { var e = st.pending[k]; if (e.nodeid == st.nodeid) pend.push(e); }
+        for (var i = 0; i < st.log.length; i++) { var f = st.log[i]; if ((f.nodeid == st.nodeid) && ((f.state == 'done') || (f.state == 'error')) && !f.seen) fin.push(f); }
+        if (pend.length) {
+            var old = pend.reduce(function (x, y) { return (x.start < y.start) ? x : y; });
+            var newest = pend.reduce(function (x, y) { return (x.start > y.start) ? x : y; });
+            return { state: 'running', name: (pend.length > 1) ? (pend.length + ' running') : old.cmd.name, time: (old.cancelling ? 'cancelling…' : fmtEl(old.start)), entry: newest, live: old, title: old.cmd.name + ' - click for the live output' };
         }
-        p.innerHTML = Q.qcBulkCtrlHtml();
-        p.style.display = 'inline-flex';
+        if (fin.length) {
+            var worst = fin.some(function (f) { return f.state == 'error'; }), last = fin[0];
+            var nm = (fin.length > 1) ? (fin.length + ' finished') : last.cmd.name;
+            var tm = worst ? ((fin.length > 1) ? (fin.filter(function (f) { return f.state == 'error'; }).length + ' failed') : short(last.error)) : Q.qcFmtMs(last.ms);
+            return { state: worst ? 'err' : 'ok', name: nm, time: tm, entry: last, title: (worst ? (last.error || 'failed') : 'finished') + ' - click for the output, × clears' };
+        }
+        return null;
+    };
+
+    obj.qcChipHtml = function (scope) {
+        var Q = pluginHandler.quickcommands, info = Q.qcChipInfo(scope);
+        if (info == null) return '';
+        var name = (info.name.length > 22) ? (info.name.substring(0, 21) + '…') : info.name;
+        var g = (info.state == 'running') ? '<span class="qcSpin"></span>' : ('<span class="qcChipG">' + (info.state == 'ok' ? '✓' : '✗') + '</span>');
+        var bs = (typeof showModal === 'function') ? ' qcChipBs' : '';
+        return '<button type="button" class="qcChip ' + info.state + bs + '" role="status" aria-live="polite" data-scope="' + scope + '" title="' + Q.qcEsc(info.title) + '"'
+            + ' onclick="return pluginHandler.quickcommands.qcChipClick(event,\'' + scope + '\')"'
+            + ' onmouseenter="return pluginHandler.quickcommands.qcPeekShow(\'' + scope + '\',this)" onmouseleave="return pluginHandler.quickcommands.qcPeekHide()"'
+            + ' onfocus="return pluginHandler.quickcommands.qcPeekShow(\'' + scope + '\',this)" onblur="return pluginHandler.quickcommands.qcPeekHide()">'
+            + g + '<span class="qcChipN">' + Q.qcEsc(name) + '</span><span class="qcChipT" aria-hidden="true">' + Q.qcEsc(info.time) + '</span>'
+            + ((info.state != 'running') ? '<span class="qcChipX" title="Clear">×</span>' : '') + '</button>';
+    };
+
+    obj.qcChipClick = function (ev, scope) {
+        var Q = pluginHandler.quickcommands, st = Q.qcState();
+        Q.qcPeekHide();
+        if (ev && ev.target && ev.target.closest && ev.target.closest('.qcChipX')) {
+            if (scope == 'bulk') { st.bulk = null; }
+            else { st.log.forEach(function (f) { if ((f.nodeid == st.nodeid) && (f.state != 'running')) f.seen = true; }); Q.qcLogSave(); }
+            Q.qcRenderChips();
+            return false;
+        }
+        if (typeof xxdialogMode != 'undefined' && xxdialogMode) return false;
+        var info = Q.qcChipInfo(scope); if (info == null) return false;
+        if (scope == 'bulk') { return info.entry ? Q.qcBulkShow(info.entry.rid) : Q.qcBulkResults(); }
+        return Q.qcShowOutput(st.log.indexOf(info.entry));
+    };
+
+    // Re-render every chip slot in place (cheap: no toolbar rebuild, menus stay open).
+    obj.qcRenderChips = function () {
+        var Q = pluginHandler.quickcommands;
+        document.querySelectorAll('.qcChipSlot').forEach(function (slot) { slot.innerHTML = Q.qcChipHtml(slot.getAttribute('data-scope')); });
+        // A wrapper that only held the chip (strip view) goes away with it.
+        ['qcTermMenuWrap', 'qcDeskMenuWrap'].forEach(function (id) { var w = document.getElementById(id); if (w && !w.querySelector('.qcChip') && !w.querySelector('.qcMenu')) w.remove(); });
+        var peek = document.getElementById('qcPeek');
+        if (peek && (peek.style.display != 'none') && peek._chip && !document.body.contains(peek._chip)) { Q.qcPeekHide(); }
+        Q.qcChipTick(true);
+    };
+
+    // One-second clock for the running chips. Only the time spans are touched.
+    obj.qcChipTick = function (ensure) {
+        var Q = pluginHandler.quickcommands, st = Q.qcState();
+        var running = false;
+        for (var k in st.pending) { running = true; break; }
+        if (ensure === true) {
+            if (running && (st.chipTimer == null)) { st.chipTimer = setInterval(function () { pluginHandler.quickcommands.qcChipTick(); }, 1000); }
+            if (!running && st.chipTimer) { clearInterval(st.chipTimer); st.chipTimer = null; }
+            return;
+        }
+        if (!running) { if (st.chipTimer) { clearInterval(st.chipTimer); st.chipTimer = null; } return; }
+        document.querySelectorAll('.qcChip.running').forEach(function (chip) {
+            var info = Q.qcChipInfo(chip.getAttribute('data-scope'));
+            var t = chip.querySelector('.qcChipT');
+            if (info && (info.state == 'running') && t) { t.textContent = info.time; }
+            else { Q.qcRenderChips(); }
+        });
+        var peek = document.getElementById('qcPeek');
+        if (peek && (peek.style.display != 'none') && peek._scope) { peek.innerHTML = Q.qcPeekLines(peek._scope); }
+    };
+
+    // The last five lines the run printed (or one line per device for a group run).
+    obj.qcPeekLines = function (scope) {
+        var Q = pluginHandler.quickcommands, st = Q.qcState(), info = Q.qcChipInfo(scope);
+        if (info == null) return '';
+        var out = '';
+        if ((scope == 'bulk') && (info.entry == null) && st.bulk) {
+            var b = st.bulk, rows = b.runs.map(function (rid) { return b.byRid[rid]; });
+            rows.sort(function (x, y) { var r = function (e) { return (e.state == 'error') ? 0 : ((e.state == 'running') ? 1 : 2); }; return r(x) - r(y); });
+            out = '<div class="qcPeekH">' + Q.qcEsc(b.cmd.name) + ' on ' + rows.length + ' devices</div>';
+            rows.slice(0, 5).forEach(function (e) {
+                var mark = (e.state == 'running') ? '<span class="qcPeekRun">…</span>' : ((e.state == 'done') ? '<span class="qcPeekOk">✓</span>' : '<span class="qcPeekErr">✗</span>');
+                var tail = (e.state == 'running') ? '' : ((e.state == 'done') ? Q.qcFmtMs(e.ms) : (e.error || 'failed'));
+                out += mark + ' ' + Q.qcEsc(e.name) + (tail ? ('  ' + Q.qcEsc(tail.length > 60 ? tail.substring(0, 59) + '…' : tail)) : '') + '\n';
+            });
+            if (rows.length > 5) out += '<span class="qcPeekH">+ ' + (rows.length - 5) + ' more</span>';
+            return out.replace(/\n$/, '');
+        }
+        var e = info.live || info.entry; if (e == null) return '';
+        out = '<div class="qcPeekH">' + Q.qcEsc(e.cmd.name) + ((scope == 'bulk') ? (' on ' + Q.qcEsc(e.name || '')) : '') + '</div>';
+        var lines = (e.output || '').replace(/\r/g, '').split('\n').filter(function (l) { return l.trim().length; });
+        if (lines.length == 0) { out += '<span class="qcPeekH">' + ((e.state == 'running') ? '(no output yet)' : (e.state == 'error' ? Q.qcEsc(e.error || 'failed') : '(no output)')) + '</span>'; }
+        else { out += lines.slice(-5).map(function (l) { return Q.qcEsc(l.length > 120 ? l.substring(0, 119) + '…' : l); }).join('\n'); }
+        return out;
+    };
+
+    obj.qcPeekShow = function (scope, chip) {
+        var Q = pluginHandler.quickcommands;
+        var peek = document.getElementById('qcPeek');
+        if (peek == null) { peek = document.createElement('div'); peek.id = 'qcPeek'; document.body.appendChild(peek); }
+        var html = Q.qcPeekLines(scope); if (!html) return false;
+        peek.innerHTML = html; peek._scope = scope; peek._chip = chip;
+        peek.style.display = 'block';
+        var r = chip.getBoundingClientRect(), w = peek.offsetWidth, h = peek.offsetHeight;
+        var left = Math.max(4, Math.min(r.right - w, window.innerWidth - w - 4));
+        var top = (r.bottom + 6 + h > window.innerHeight) ? (r.top - 6 - h) : (r.bottom + 6);
+        peek.style.left = left + 'px'; peek.style.top = Math.max(4, top) + 'px';
+        return false;
+    };
+
+    obj.qcPeekHide = function () {
+        var peek = document.getElementById('qcPeek');
+        if (peek) { peek.style.display = 'none'; peek._scope = null; peek._chip = null; }
+        return false;
     };
 
     obj.qcBulkSummary = function () {
@@ -1553,7 +1679,7 @@ module.exports.quickcommands = function (parent) {
         if (row) { row.innerHTML = Q.qcBulkRowHtml(e); }
         var sum = document.getElementById('qcBulkSum');
         if (sum) { sum.innerHTML = Q.qcBulkSummary(); }
-        Q.qcBulkPillUpdate();
+        Q.qcRenderChips();
     };
 
     // Output window for one device of a bulk run (live via qcOutPre, like the single run).
@@ -1561,6 +1687,7 @@ module.exports.quickcommands = function (parent) {
         var Q = pluginHandler.quickcommands, st = Q.qcState(), b = st.bulk;
         if (b == null) return false;
         var e = b.byRid[rid]; if (e == null) return false;
+        if (e.state == 'done') { e.seen = true; Q.qcRenderChips(); }
         return Q.qcAfterDialog(function () {
             var Q2 = pluginHandler.quickcommands;
             var status = (e.state == 'error') ? ('<span class="qcErr">' + Q2.qcEsc(e.error) + '</span>') : ((e.state == 'running') ? '<span class="qcMuted">running…</span>' : ('<span class="qcOk">' + Q2.qcFmtMs(e.ms) + '</span>'));

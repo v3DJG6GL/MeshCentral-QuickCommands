@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4.0
+
+- **Run chip**: every command you run from the Desktop, Terminal or General
+  tab now shows a small live status control left of the *Quick commands*
+  button (left of *Actions* in the strip view): a spinner, the command's
+  name and the elapsed time while it runs, then ✓ or ✗ with the duration or
+  a short reason. Clicking it opens the output window, × clears it. A
+  finished chip stays until its output has been looked at; a failed one
+  stays until cleared, so *Free the agent* stays one click away. Several
+  runs show as *N running*. On the General tab the chip sits in the panel
+  header.
+- **Output peek**: hovering the chip shows the last five lines the command
+  printed so far, without opening a window or taking focus from the remote
+  screen. For a group run it lists one line per device, failures first.
+- **My Devices**: the results button became the same chip, with *done of
+  total* and the elapsed time while a group run is going and *12 done* or
+  *2 of 12 failed* afterwards. Chip and ⚡ Quick Commands button moved to
+  the right edge of the toolbar, where they sit on the device tabs.
+- The *Quick commands* button on the Terminal tab now sits left of
+  *Actions* like on the Desktop tab (it was to the right of it).
+- Dropped the floating results pill in the bottom-right corner. Group runs
+  are reachable from the My Devices chip, from the chip on a participating
+  device's tabs, and from each device's run log.
+
 ## 0.3.5
 
 - **Desktop tab strip**: the Desktop keys can be shown as a keypad strip under

@@ -8,13 +8,15 @@ One-click keys for the commands you type again and again — `ipconfig /all`, `g
 
 | Where | What |
 | --- | --- |
-| **Terminal tab** | A strip of keys under the toolbar, or a *Quick commands* menu button inside it. Each person can switch between the two; the administrator picks the default. From 5 keys on, a filter box appears (**/** focuses it, **Esc** clears, **Enter** runs the last key standing; in the menu, **↑/↓ + Enter** pick one); from 2 groups on, group chips narrow the keys to a group. |
+| **Terminal tab** | A strip of keys under the toolbar, or a *Quick commands* menu button inside it, left of *Actions*. Each person can switch between the two; the administrator picks the default. From 5 keys on, a filter box appears (**/** focuses it, **Esc** clears, **Enter** runs the last key standing; in the menu, **↑/↓ + Enter** pick one); from 2 groups on, group chips narrow the keys to a group. |
 | **Desktop tab** | The keys you flag "Show on Desktop", as a *Quick commands* menu button in the desktop toolbar or as a strip under it. Each person can switch; the administrator picks the default (menu, since the strip takes a line off the remote screen). Same filter box and chips as on the Terminal tab. |
 | **General tab** | A *Quick commands* panel for the keys you flag "Show on General", with the same filter box from 5 keys on. |
 | **Plugins › Quick Commands tab** | Every key for the device plus a run log with the output of everything you ran on this device - including group runs from My Devices. The log is kept per browser tab and survives a page reload. |
 | **My Server › Plugins › Quick Commands** | The editor: groups, drag-to-reorder, device scoping, import/export as JSON. The edit panel is drag-resizable (remembered per browser) and expands to a centered dialog with **⤢**; multi-line commands get line numbers. |
-| **My Devices — selection** | Check devices, press **⚡ Quick Commands** next to *Group Action* (or pick *⚡ Run quick command* inside Group Action). A picker shows which commands fit how many of the selected devices; the run opens a results window with a live row per device. Closing a device's output window leads back to the overview; while a run is around, a results button with live counts sits next to ⚡ Quick Commands (and a matching pill in the bottom right corner on every other page) to re-open it. |
+| **My Devices — selection** | Check devices, press **⚡ Quick Commands** at the right end of the toolbar (or pick *⚡ Run quick command* inside Group Action). A picker shows which commands fit how many of the selected devices; the run opens a results window with a live row per device. Closing a device's output window leads back to the overview; while a run is around, the run chip next to ⚡ Quick Commands shows *done of total* and re-opens the results. |
 | **My Devices — right-click** | A **⚡ Quick Commands** flyout in the device context menu runs a command on that device directly. Shown only on connected agents you may run commands on. |
+
+While a command runs, a **run chip** appears left of the *Quick commands* button (and in the General panel's header): spinner, name and elapsed time, then ✓ or ✗ with the duration or a short reason. Click it for the output window, hover it for the last five lines of output, × clears it.
 
 Every key shows its **name and the literal command**, a badge for the shell (`CMD`, `PS`, `SH`, `AGENT`), and only appears on devices it applies to (CMD/PowerShell on Windows, SH elsewhere, agent-console commands everywhere).
 
