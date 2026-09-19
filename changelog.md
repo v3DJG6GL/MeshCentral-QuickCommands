@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.1
+
+- **General tab**: the keys are now grouped like on the Desktop and Terminal
+  strips, with the group's colored label in front of each block. The strips
+  and the General panel render their keys and the filter field through the
+  same code.
+- **Strips**: *Menu* and *Manage…* moved into the strip's top row, next to
+  the filter and the group chips, so they no longer wrap onto a row of their
+  own. A strip without filter and chips stays a single row with the links
+  pinned to its right end.
+
 ## 0.4.0
 
 - **Run chip**: every command you run from the Desktop, Terminal or General

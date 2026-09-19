@@ -52,6 +52,8 @@ module.exports.quickcommands = function (parent) {
         'qcSetTermView',
         'qcSetDeskView',
         'qcStripHtml',
+        'qcFilterHtml',
+        'qcKeysHtml',
         'qcDeskFit',
         'qcOpenManage',
         'qcDialog',
@@ -204,8 +206,16 @@ module.exports.quickcommands = function (parent) {
     obj.qcInjectStyles = function () {
         if (document.getElementById('qcStyles')) return;
         var css = `
-.qcStrip { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:5px 6px; background:#E4E9E7; border-bottom:1px solid #b9c2bf; text-align:left; }
+.qcStrip { padding:5px 6px; background:#E4E9E7; border-bottom:1px solid #b9c2bf; text-align:left; }
 .night .qcStrip { background:#1a1f1e; border-bottom-color:#333; }
+.qcStripH, .qcStripB { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.qcStripH { margin-bottom:5px; }
+.qcTail { white-space:nowrap; }
+.qcStrip.qcOneRow { display:flex; align-items:center; gap:6px; }
+.qcOneRow .qcStripH { display:contents; }
+.qcOneRow .qcStripB { order:1; flex:1 1 0; min-width:0; }
+.qcOneRow .qcTail { order:2; }
+.qcOneRow .qcGrow { display:none; }
 .qcLabel { font-size:11px; color:#5a6368; text-transform:uppercase; letter-spacing:0.6px; margin-right:4px; white-space:nowrap; }
 .night .qcLabel { color:#8b9591; }
 .qcGroup { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding-right:10px; margin-right:4px; border-right:1px solid #b9c2bf; }
@@ -580,39 +590,49 @@ module.exports.quickcommands = function (parent) {
     };
 
 
-    // The keypad strip (label, filter, chips, keys), shared by the Terminal and
-    // Desktop strips. tail is the links at the right end.
-    obj.qcStripHtml = function (kind, cmds, canFilter, tail) {
+    // The keyword filter field of a surface (strip, menu or General panel).
+    obj.qcFilterHtml = function (kind, q, placeholder) {
+        var Q = pluginHandler.quickcommands;
+        return '<span class="qcFwrap"><input type="text" id="' + Q.qcFilterId(kind) + '" class="qcFin" placeholder="' + (placeholder || 'Filter') + '" autocomplete="off" title="Filter commands by name, command or group (press / to jump here)" value="' + Q.qcEsc(q) + '" oninput="return pluginHandler.quickcommands.qcSetFilter(\'' + kind + '\', this.value)" onkeydown="return pluginHandler.quickcommands.qcFilterKey(event, \'' + kind + '\')" />'
+            + (q ? '<span class="qcFclr" title="Clear filter" onclick="return pluginHandler.quickcommands.qcClearFilter(\'' + kind + '\')">✕</span>' : '') + '</span>';
+    };
+
+    // The keys of a surface, one block per group with its colored label, or the
+    // "no match" note. Shared by the Terminal/Desktop strips and the General panel.
+    obj.qcKeysHtml = function (kind, shown, q) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
-        var where = Q.qcWhereOf(kind), fid = Q.qcFilterId(kind);
-        var q = canFilter ? (st[kind + 'Filter'] || '') : '';
-        var chips = Q.qcChipsHtml(kind, cmds);
-        var shown = Q.qcFiltered(where, q, chips ? kind : null);
-        var groups = Q.qcGroupsFor(shown);
-        var x = '<div class="qcStrip"><span class="qcLabel">Quick commands</span>';
-        if (canFilter) {
-            x += '<span class="qcFwrap"><input type="text" id="' + fid + '" class="qcFin" placeholder="Filter" autocomplete="off" title="Filter commands by name, command or group (press / to jump here)" value="' + Q.qcEsc(q) + '" oninput="return pluginHandler.quickcommands.qcSetFilter(\'' + kind + '\', this.value)" onkeydown="return pluginHandler.quickcommands.qcFilterKey(event, \'' + kind + '\')" />'
-                + (q ? '<span class="qcFclr" title="Clear filter" onclick="return pluginHandler.quickcommands.qcClearFilter(\'' + kind + '\')">✕</span>' : '') + '</span>';
-        }
-        x += chips;
+        var where = Q.qcWhereOf(kind), x = '';
         if (shown.length == 0) {
             x += '<span class="qcEmptyF">No commands match ' + (q ? '"' + Q.qcEsc(q) + '"' : 'the chosen groups') + ' · <span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearFilter(\'' + kind + '\')">Clear</span></span>';
         }
-        groups.forEach(function (g) {
+        Q.qcGroupsFor(shown).forEach(function (g) {
             var gcol = (g.name && st.config.groupColors) ? st.config.groupColors[g.name] : null;
             x += '<div class="qcGroup" title="' + Q.qcEsc(g.name) + '">';
             if (gcol) x += '<span class="qcGL qcc-' + gcol + '">' + Q.qcEsc(g.name) + '</span>';
             g.commands.forEach(function (c) { x += Q.qcKeyHtml(c, where, q); });
             x += '</div>';
         });
-        return x + '<span class="qcGrow"></span>' + tail + '</div>';
+        return x;
+    };
+
+    // The keypad strip, shared by the Terminal and Desktop strips: a head row
+    // (label, filter, chips, and tail - the links at the right end) over the
+    // keys. With neither filter nor chips the head folds into the keys' row.
+    obj.qcStripHtml = function (kind, cmds, canFilter, tail) {
+        var Q = pluginHandler.quickcommands, st = Q.qcState();
+        var q = canFilter ? (st[kind + 'Filter'] || '') : '';
+        var chips = Q.qcChipsHtml(kind, cmds);
+        var shown = Q.qcFiltered(Q.qcWhereOf(kind), q, chips ? kind : null);
+        return '<div class="qcStrip' + ((canFilter || chips) ? '' : ' qcOneRow') + '"><div class="qcStripH"><span class="qcLabel">Quick commands</span>'
+            + (canFilter ? Q.qcFilterHtml(kind, q) : '') + chips + '<span class="qcGrow"></span><span class="qcTail">' + tail + '</span></div>'
+            + '<div class="qcStripB">' + Q.qcKeysHtml(kind, shown, q) + '</div></div>';
     };
 
     // The "Quick commands ▾" button plus its dropdown, shared by the Terminal
     // and Desktop menus. kind picks the filter state, footer the links at the bottom.
     obj.qcMenuHtml = function (kind, cmds, canFilter, footer) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
-        var where = Q.qcWhereOf(kind), fid = Q.qcFilterId(kind);
+        var where = Q.qcWhereOf(kind);
         var q = canFilter ? (st[kind + 'Filter'] || '') : '';
         var chips = Q.qcChipsHtml(kind, cmds);
         var shown = Q.qcFiltered(where, q, chips ? kind : null);
@@ -624,8 +644,7 @@ module.exports.quickcommands = function (parent) {
         if (canFilter || chips) {
             x += '<div class="qcMenuS">';
             if (canFilter) {
-                x += '<span class="qcFwrap"><input type="text" id="' + fid + '" class="qcFin" placeholder="Filter commands" autocomplete="off" value="' + Q.qcEsc(q) + '" oninput="return pluginHandler.quickcommands.qcSetFilter(\'' + kind + '\', this.value)" onkeydown="return pluginHandler.quickcommands.qcFilterKey(event, \'' + kind + '\')" />'
-                    + (q ? '<span class="qcFclr" title="Clear filter" onclick="return pluginHandler.quickcommands.qcClearFilter(\'' + kind + '\')">✕</span>' : '') + '</span>';
+                x += Q.qcFilterHtml(kind, q, 'Filter commands');
             }
             x += chips + '</div>';
         }
@@ -820,15 +839,9 @@ module.exports.quickcommands = function (parent) {
         var shown = Q.qcFiltered('general', q, chips ? 'g' : null);
         var x = '<div class="qcPanel"><div class="qcPanelH"><span>Quick commands</span><span class="qcChipSlot" data-scope="node">' + Q.qcChipHtml('node') + '</span><span class="qcHint">Output opens in a window when the command finishes</span><span class="qcGrow"></span>';
         x += chips;
-        if (canFilter) {
-            x += '<span class="qcFwrap"><input type="text" id="qcGenFilter" class="qcFin" placeholder="Filter" autocomplete="off" title="Filter commands by name, command or group (press / to jump here)" value="' + Q.qcEsc(q) + '" oninput="return pluginHandler.quickcommands.qcSetFilter(\'g\', this.value)" onkeydown="return pluginHandler.quickcommands.qcFilterKey(event, \'g\')" />'
-                + (q ? '<span class="qcFclr" title="Clear filter" onclick="return pluginHandler.quickcommands.qcClearFilter(\'g\')">✕</span>' : '') + '</span>';
-        }
+        if (canFilter) x += Q.qcFilterHtml('g', q);
         x += (st.canManage ? '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcOpenManage()">Manage…</span>' : '') + '</div><div class="qcPanelB">';
-        if (shown.length == 0) {
-            x += '<span class="qcEmptyF">No commands match ' + (q ? '"' + Q.qcEsc(q) + '"' : 'the chosen groups') + ' · <span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearFilter(\'g\')">Clear</span></span>';
-        }
-        shown.forEach(function (c) { x += Q.qcKeyHtml(c, 'general', q); });
+        x += Q.qcKeysHtml('g', shown, q);
         x += '</div></div>';
         panel.innerHTML = x;
     };
