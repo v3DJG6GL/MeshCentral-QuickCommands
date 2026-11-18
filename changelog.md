@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 next version (see *Releases* in the readme).
 
 ## [Unreleased]
+
+## [0.4.2] - 2026-11-18
 ### Fixed
 - Terminal strip: the strip's height is now taken off the terminal area, as on the Desktop tab, so the bottom of
   the terminal no longer runs off the page. The terminal is refitted to the smaller area (fewer rows) and follows

@@ -1,7 +1,7 @@
 # MeshCentral Quick Commands
 
-*Current Version: 0.4.1
-Released: 2026-09-19*
+*Current Version: 0.4.2
+Released: 2026-11-18*
 
 One-click keys for the commands you type again and again — `ipconfig /all`, `gpupdate /force`, `shutdown /r /f /t 0`, `df -h` — right on the device pages of MeshCentral.
 
