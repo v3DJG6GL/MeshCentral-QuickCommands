@@ -1,0 +1,179 @@
+# Release: version bump commit + vX.Y.Z tag + GitHub release, after a green CI run on main.
+#
+# MeshCentral offers plugin updates by comparing config.json "version" read from raw main (configUrl) and lists
+# downgrade targets from the GitHub tags API (versionHistoryUrl). So a release is
+#   1. a commit "Release vX.Y.Z [skip ci]" that writes X.Y.Z into config.json, readme.md (*Current Version* /
+#      Released) and changelog.md ([Unreleased] -> [X.Y.Z] - date, plus a fresh empty [Unreleased]),
+#   2. a lightweight tag vX.Y.Z on that commit, pushed together with it (git push --atomic),
+#   3. a GitHub release vX.Y.Z whose notes are that changelog section (fallback: commit log since the previous tag).
+# The logic lives in scripts/release.js (tested in test/release.test.js); this file only wires it up.
+#
+# Two ways in:
+#   - automatic: after the CI workflow succeeded for a push to main. The bump comes from changelog.md's
+#     [Unreleased] section: empty -> no release (docs / chore pushes), "**Breaking" -> major (minor while 0.x),
+#     ### Added -> minor, anything else (### Changed, ### Fixed, ...) -> patch. "[skip release]" in the head
+#     commit message skips.
+#   - manual: Actions -> Release -> Run workflow on main, bump auto | patch | minor | major. An explicit bump
+#     overrides the changelog and [skip release]; it still needs a green CI run for the commit.
+#
+# Safety:
+#   * Only the commit CI tested is released: if main moved on meanwhile, this run stops with a notice and the
+#     CI run of the newer commit releases it. Out-of-order CI completions are skipped the same way.
+#   * Idempotent: a re-run whose release commit and tag were already pushed (HEAD is tagged) only creates the
+#     GitHub release if it is missing (probe, then create).
+#   * Serialized: one release run at a time (concurrency group, never cancelled).
+#   * No loop: pushes made with GITHUB_TOKEN start no workflows; the release commit also carries [skip ci] (for a
+#     RELEASE_TOKEN push), and both workflows ignore commits whose message starts with "Release v".
+#
+# Branch protection: the push goes to main. If main is protected, allow GitHub Actions to push to it, or add a
+# repository secret RELEASE_TOKEN (fine-grained token with Contents: read and write for this repo, owned by a user
+# allowed to push); without that secret GITHUB_TOKEN is used.
+name: Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump (auto: derived from the [Unreleased] section of changelog.md)'
+        type: choice
+        default: auto
+        options: [auto, patch, minor, major]
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       !startsWith(github.event.workflow_run.head_commit.message, 'Release v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write   # push the release commit and tag, create the GitHub release
+      actions: read     # manual runs: look up the CI result of the commit
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0   # all history and tags: the current version is the newest vX.Y.Z tag
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.x'
+
+      - name: Check the commit to release
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          head=$(git rev-parse HEAD)
+          is_release() { git log -1 --format=%s "$1" | grep -q '^Release v'; }
+          if [ "$EVENT" = workflow_run ]; then
+            tested="$TESTED_SHA"
+          else
+            if [ "$GITHUB_REF" != refs/heads/main ]; then
+              echo "::error::run the release workflow on main (not $GITHUB_REF)"
+              exit 1
+            fi
+            # a release commit only changes version numbers: its tests are those of its parent
+            tested="$head"
+            if is_release "$head"; then tested=$(git rev-parse "$head^"); fi
+            runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$tested&branch=main&status=success&per_page=1" --jq .total_count)
+            if [ "$runs" = 0 ]; then
+              echo "::error::no successful CI run for $tested on main - wait for CI to pass before releasing"
+              exit 1
+            fi
+          fi
+          # HEAD may be the release commit of an earlier attempt on top of the tested commit (re-run: repair only)
+          if [ "$head" != "$tested" ] && ! { is_release "$head" && [ "$(git rev-parse "$head^")" = "$tested" ]; }; then
+            echo "::notice::main moved from the tested commit $tested to $head - nothing released here; the CI run of the newer commit releases it"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "tested=$tested" >> "$GITHUB_OUTPUT"
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          echo "go=true" >> "$GITHUB_OUTPUT"
+
+      - name: Plan the version
+        id: plan
+        if: steps.target.outputs.go == 'true'
+        env:
+          BUMP: ${{ inputs.bump || 'auto' }}
+        run: |
+          set -euo pipefail
+          node scripts/release.js plan --bump "$BUMP" > "$RUNNER_TEMP/plan.json"
+          jq 'del(.notes)' "$RUNNER_TEMP/plan.json"
+          echo "release=$(jq -r .release "$RUNNER_TEMP/plan.json")" >> "$GITHUB_OUTPUT"
+          echo "version=$(jq -r '.next // ""' "$RUNNER_TEMP/plan.json")" >> "$GITHUB_OUTPUT"
+          echo "repair=$(jq -r '.repair // ""' "$RUNNER_TEMP/plan.json")" >> "$GITHUB_OUTPUT"
+          if [ "$(jq -r .release "$RUNNER_TEMP/plan.json")" != true ] && [ "$(jq -r '.repair // ""' "$RUNNER_TEMP/plan.json")" = "" ]; then
+            echo "::notice::no release: $(jq -r .reason "$RUNNER_TEMP/plan.json")"
+          fi
+
+      - name: Commit, tag and push the version
+        id: push
+        if: steps.plan.outputs.release == 'true'
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          HEAD_SHA: ${{ steps.target.outputs.head }}
+        run: |
+          set -euo pipefail
+          node scripts/release.js apply --version "$VERSION" --date "$(date -u +%F)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add config.json readme.md changelog.md
+          git commit -q -m "Release v$VERSION [skip ci]"
+          git tag "v$VERSION"
+          git show --stat --format='%h %s' HEAD
+          if ! git push --atomic origin HEAD:refs/heads/main "refs/tags/v$VERSION"; then
+            git fetch -q origin main
+            if [ "$(git rev-parse origin/main)" != "$HEAD_SHA" ]; then
+              echo "::notice::main moved while releasing - nothing pushed; the CI run of the newer commit releases it"
+              echo "tag=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::error::push to main rejected - if main is protected, allow GitHub Actions to push or add a RELEASE_TOKEN secret (see the header of this file)"
+            exit 1
+          fi
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create the GitHub release
+        if: steps.push.outputs.tag != '' || steps.plan.outputs.repair != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.push.outputs.tag || steps.plan.outputs.repair }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "::notice::release $TAG already exists"
+            exit 0
+          fi
+          notes="$RUNNER_TEMP/notes.md"
+          node scripts/release.js notes --version "${TAG#v}" > "$notes"
+          if [ ! -s "$notes" ]; then
+            # no changelog entries (manual release): the commit log since the previous tag
+            prev=$(git tag -l 'v*' | { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true; } | sort -V \
+              | awk -v t="$TAG" '$0 == t { print p; exit } { p = $0 }')
+            range="${prev:+$prev..}$TAG"
+            git log --no-merges --format='- %s (%h)' "$range" | { grep -v '^- Release v' || true; } > "$notes"
+          fi
+          gh release create "$TAG" --title "$TAG" --notes-file "$notes" --verify-tag
+          echo "::notice::released $TAG"

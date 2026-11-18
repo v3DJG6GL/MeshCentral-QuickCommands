@@ -1,5 +1,8 @@
 # MeshCentral Quick Commands
 
+*Current Version: 0.4.1
+Released: 2026-09-19*
+
 One-click keys for the commands you type again and again — `ipconfig /all`, `gpupdate /force`, `shutdown /r /f /t 0`, `df -h` — right on the device pages of MeshCentral.
 
 ![Keypad strip on the Terminal tab](https://raw.githubusercontent.com/v3DJG6GL/MeshCentral-QuickCommands/main/docs/terminal-strip.png)
@@ -65,6 +68,25 @@ one, selected per user or with `"sitestyle": 3` in the domain configuration.
 - Some programs **buffer their output** when it goes to a pipe instead of a console — `gpupdate` shows everything only when it finishes, so the live window may sit on the `cmd` banner for a while. That is the program's doing, not the agent's; run it in *Type into terminal* mode to watch it live.
 - On non-English Windows, command output comes back in the OEM codepage and umlauts turn into garbage. Prefix the command with `chcp 65001 >nul & ` to get clean UTF-8 (see the example gpupdate key).
 - MeshCentral's own `preconfiguredscripts` (config.json) still work; this plugin is the live-editable alternative.
+
+## Development
+
+The tests use Node's built-in test runner and need no dependencies (Node 22 or newer):
+
+```
+node --test "test/**/*.test.js"
+```
+
+`node scripts/check-syntax.js` checks the syntax of every `.js` file and of the inline scripts of the admin page. `test/exports.test.js` checks that every function listed in `obj.exports` exists and compiles on its own, the way MeshCentral sends it to the browser. CI (`.github/workflows/ci.yml`) runs both on Node 22, 24 and 26 for every push to main and every pull request.
+
+### Releases
+
+Releases are made by `.github/workflows/release.yml`, not by hand:
+- Describe each change in `changelog.md` under `## [Unreleased]` ([Keep a Changelog](https://keepachangelog.com/en/1.0.0/) headings) and push to main. When CI has passed for that commit, a release follows automatically. The version step comes from the changelog: a `**Breaking` entry → major (minor while the version is 0.x), `### Added` → minor, anything else (`### Changed`, `### Fixed`, `### Security`, ...) → patch. An empty `[Unreleased]` section means no release, so documentation or housekeeping pushes don't release.
+- Put `[skip release]` in the commit message to push changelog entries without releasing yet.
+- To release on demand, or to pick the step yourself: Actions → Release → *Run workflow* on main, with bump `patch`, `minor` or `major` (`auto` uses the changelog). The commit still needs a successful CI run.
+- The release commit (`Release vX.Y.Z [skip ci]`) writes the version into `config.json`, the top of this readme and `changelog.md` (`[Unreleased]` becomes `[X.Y.Z] - date`). The commit is tagged `vX.Y.Z`, and a GitHub release is created with that changelog section as its notes. MeshCentral offers updates based on `config.json` on main and lists older versions from the tags. Don't change the version by hand.
+- The workflow pushes to main. If main is protected, allow GitHub Actions to push to it, or add a `RELEASE_TOKEN` repository secret (a token with *Contents: read and write* on this repository). Without the secret, the built-in `GITHUB_TOKEN` is used.
 
 ## License
 

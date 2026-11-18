@@ -1,0 +1,62 @@
+# CI: syntax check + the node:test suites on every push to main, every pull request and on demand.
+#
+# release.yml runs after this workflow ("CI") completed successfully for a push to main, so every job here is a
+# release gate: a failing matrix leg blocks the release of that commit.
+#
+# The suites need no dependencies. The "no test skipped" check keeps it that way: a suite that starts skipping
+# (for example one that later gains an optional module) fails the run instead of quietly testing less.
+#
+# Release commits ("Release vX.Y.Z [skip ci]", pushed by release.yml) only change version numbers; GitHub does not
+# start workflows for pushes made with GITHUB_TOKEN, [skip ci] covers a push with a personal access token, and the
+# job condition below covers anything else.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# superseded PR runs are cancelled; main runs are kept (each one may lead to a release)
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: test (Node ${{ matrix.node }})
+    if: >-
+      github.event_name != 'push' ||
+      !startsWith(github.event.head_commit.message, 'Release v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22.x: MeshCentral's minimum (>= 22.21); 24.x and 26.x: the LTS lines
+        node: ['22.x', '24.x', '26.x']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax check (*.js and the inline scripts of views/*.handlebars)
+        run: node scripts/check-syntax.js
+
+      - name: Tests
+        run: |
+          set -euo pipefail
+          node --test --test-reporter=spec --test-reporter-destination=stdout \
+            --test-reporter=tap --test-reporter-destination="$RUNNER_TEMP/tests.tap" "test/**/*.test.js"
+          if ! grep -qx '# skipped 0' "$RUNNER_TEMP/tests.tap"; then
+            grep '# SKIP' "$RUNNER_TEMP/tests.tap" || true
+            echo "::error::tests were skipped"
+            exit 1
+          fi

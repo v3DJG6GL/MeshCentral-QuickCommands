@@ -1,6 +1,13 @@
 # Changelog
+All notable changes to this project are documented in this file.
 
-## 0.4.1
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). New entries go under
+`## [Unreleased]` with `### Added`, `### Changed` or `### Fixed`; the release workflow turns that section into the
+next version (see *Releases* in the readme).
+
+## [Unreleased]
+
+## [0.4.1] - 2026-09-19
 
 - **General tab**: the keys are now grouped like on the Desktop and Terminal
   strips, with the group's colored label in front of each block. The strips
@@ -11,7 +18,7 @@
   own. A strip without filter and chips stays a single row with the links
   pinned to its right end.
 
-## 0.4.0
+## [0.4.0] - 2026-09-03
 
 - **Run chip**: every command you run from the Desktop, Terminal or General
   tab now shows a small live status control left of the *Quick commands*
@@ -35,7 +42,7 @@
   are reachable from the My Devices chip, from the chip on a participating
   device's tabs, and from each device's run log.
 
-## 0.3.5
+## [0.3.5] - 2026-09-02
 
 - **Desktop tab strip**: the Desktop keys can be shown as a keypad strip under
   the toolbar, like on the Terminal tab (*Show as strip* in the menu, *Menu*
@@ -43,12 +50,12 @@
   page never scrolls; in full screen the strip is hidden. The editor got a
   *Desktop tab › Default view for everyone* setting (default: menu).
 
-## 0.3.4
+## [0.3.4] - 2026-09-02
 
 - The editor lists *Show on* as General, Desktop, Terminal (checkboxes, the
   G/D/T badges on the keys and the summary line).
 
-## 0.3.3
+## [0.3.3] - 2026-09-02
 
 - **Desktop tab**: keys flagged *Show on Desktop* appear as a *Quick commands*
   menu button in the desktop toolbar (same filter box and group chips as the
@@ -57,7 +64,7 @@
 - The **⚡ Quick Commands** entry in the My Devices context menu no longer
   wraps onto three lines: the menu widens to fit it while the entry is shown.
 
-## 0.3.2
+## [0.3.2] - 2026-08-29
 
 - **Group chips** next to the keyword filter on the Terminal strip, in the
   Terminal menu and on the General panel, shown as soon as a device has keys
@@ -67,12 +74,12 @@
   resets chips and text together. Clicking a chip inside the menu keeps the
   menu open.
 
-## 0.3.1
+## [0.3.1] - 2026-08-29
 
 - The keyword filter appears from **5 keys** on (was 10 - too high for a
   typical device, which left most setups without a filter at all).
 
-## 0.3.0
+## [0.3.0] - 2026-08-29
 
 - **Scoping — "Appears on"**: every command, and every group, can now be
   limited to specific devices: *All devices* (default), *Only these…* or
@@ -106,7 +113,7 @@
   (via a CSS display transition; older browsers get the pre-0.2.4 instant
   toggle).
 
-## 0.2.4
+## [0.2.4] - 2026-08-29
 
 - The group tools in the editor (color swatches, Rename, Up, Down, Delete
   group) no longer pop in and out abruptly: they fade in on hover, stay for a
@@ -114,7 +121,7 @@
   visible while one of their buttons has focus. The group header also no
   longer changes width on hover.
 
-## 0.2.3
+## [0.2.3] - 2026-08-29
 
 - Fixed: a **multi-line PowerShell command** could run forever with no output.
   The agent feeds background runs line by line into `powershell -command -`,
@@ -128,7 +135,7 @@
   **Send** with an empty answer box (the sent blank line submits the pending
   block), or with *Free the agent*.
 
-## 0.2.2
+## [0.2.2] - 2026-08-25
 
 - The results of a group run moved into the My Devices toolbar: a **results
   button** appears next to *⚡ Quick Commands* while a run is around - spinner
@@ -144,7 +151,7 @@
   before the filter box; on the classic UI it keeps the keycap look with the
   missing right margin added.
 
-## 0.2.1
+## [0.2.1] - 2026-08-25
 
 - The results window of a group run can be found again: closing the output
   window of one device leads back to the results overview (OK button), and a
@@ -160,7 +167,7 @@
   devices, so coming back to a device shows its earlier runs again; *Clear*
   only clears the shown device's entries.
 
-## 0.2.0
+## [0.2.0] - 2026-08-24
 
 - Quick commands come to the My Devices page, in two ways:
   - **Selection:** a keycap-styled **⚡ Quick Commands** button next to *Group
@@ -188,7 +195,7 @@
   `setModalContent()` (Group Action) - the core wipes `#id_dialogOptions`,
   which is now restored.
 
-## 0.1.6
+## [0.1.6] - 2026-08-24
 
 - Terminal-mode keys are finally recognisable in dark mode: instead of the
   faint `›_` glyph, they carry an amber `>_` badge next to the shell tag, and
@@ -204,7 +211,7 @@
   unchanged until a color is picked; the example set colors Network blue and
   Power red.
 
-## 0.1.5
+## [0.1.5] - 2026-08-23
 
 - Answering a question through the input line now finishes the run: the shell
   gets a fresh `exit` after each answer, because the program that asked had
@@ -217,7 +224,7 @@
 - Internal feedback lines ("quickcommands: input sent") no longer appear in
   the output window.
 
-## 0.1.4
+## [0.1.4] - 2026-08-23
 
 - Interactive background commands: the output window of a running command has
   an **input line** now - what you type is written to the command's stdin on
@@ -229,7 +236,7 @@
   shows its output live and the restart question can be answered; a new
   example "Group policy (silent)" keeps the hands-off background variant.
 
-## 0.1.3
+## [0.1.3] - 2026-08-23
 
 - Cancel now really cancels: it kills the running command on the device through
   the agent console (`taskkill /F /T` on Windows takes the command's own process
@@ -244,7 +251,7 @@
   it goes to a pipe, so everything appears at the end - chcp 65001 keeps umlauts
   readable in what comes back.
 
-## 0.1.2
+## [0.1.2] - 2026-08-23
 
 - Live output: the output window now opens while a command is still running and
   fills up as the agent streams what the command prints (before, output only
@@ -262,7 +269,7 @@
   can ask a logoff/restart question and then waits forever for an answer when
   run in the background; the piped "n" answers it with No.
 
-## 0.1.1
+## [0.1.1] - 2026-08-23
 
 - Fixed: on the modern (Bootstrap) web UI the output window never appeared and the
   interface stopped reacting to clicks until the page was reloaded. That UI needs
@@ -272,7 +279,7 @@
 - Fixed: "Run again" in the output window now closes the window before re-running.
 - The editor follows the operating system's dark mode when opened in its own tab.
 
-## 0.1.0
+## [0.1.0] - 2026-08-23
 
 - First release: keys on the Terminal tab (strip or menu), General tab and the device's Plugins tab.
 - Visual editor under My Server › Plugins with groups, drag-to-reorder, import/export.
