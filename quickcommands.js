@@ -55,6 +55,8 @@ module.exports.quickcommands = function (parent) {
         'qcFilterHtml',
         'qcKeysHtml',
         'qcDeskFit',
+        'qcTermFit',
+        'qcAreaFit',
         'qcOpenManage',
         'qcDialog',
         'qcDialogClose',
@@ -126,7 +128,7 @@ module.exports.quickcommands = function (parent) {
     obj.qcState = function () {
         var Q = pluginHandler.quickcommands;
         if (Q._st == null) {
-            Q._st = { config: null, canManage: false, pending: {}, log: [], menuOpen: false, hooked: false, nodeid: null, mdInit: false, cfgReq: false, cxNodeid: null, picker: null, bulk: null, tFilter: '', gFilter: '', mFilter: '', dFilter: '', sFilter: '', mActive: -1, dActive: -1, tGroups: {}, gGroups: {}, mGroups: {}, dGroups: {}, sGroups: {}, deskFit: {}, chipTimer: null };
+            Q._st = { config: null, canManage: false, pending: {}, log: [], menuOpen: false, hooked: false, nodeid: null, mdInit: false, cfgReq: false, cxNodeid: null, picker: null, bulk: null, tFilter: '', gFilter: '', mFilter: '', dFilter: '', sFilter: '', mActive: -1, dActive: -1, tGroups: {}, gGroups: {}, mGroups: {}, dGroups: {}, sGroups: {}, deskFit: {}, termFit: {}, chipTimer: null };
             // The run log survives a page reload (per browser tab). Runs that were
             // still going when the page reloaded cannot be picked up again - the
             // responseid is gone - so they are closed with a note.
@@ -548,7 +550,9 @@ module.exports.quickcommands = function (parent) {
     };
 
     // Terminal tab: either a strip under the toolbar or a menu button inside it,
-    // plus the run chip left of Actions in both views.
+    // plus the run chip left of Actions in both views. Like the desktop area, the
+    // terminal area is sized from the viewport by the core, so the strip's height
+    // is taken off it (qcTermFit) to keep the bottom of the terminal on screen.
     obj.qcRenderTerminal = function () {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         var table = document.querySelector('#termTable table');
@@ -557,7 +561,7 @@ module.exports.quickcommands = function (parent) {
         var wrap = document.getElementById('qcTermMenuWrap');
         var cmds = Q.qcVisible('terminal');
         var view = getstore('qc_termview', (st.config && st.config.settings) ? st.config.settings.terminalView : 'strip');
-        if ((st.config == null) || (cmds.length == 0)) { if (row) row.remove(); if (wrap) wrap.remove(); return; }
+        if ((st.config == null) || (cmds.length == 0)) { if (row) row.remove(); if (wrap) wrap.remove(); Q.qcTermFit(); return; }
         var manage = st.canManage ? '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcOpenManage()">Manage…</span>' : '';
         // The keyword filter earns its space once the device has 5+ keys.
         var canFilter = (cmds.length >= 5);
@@ -587,6 +591,7 @@ module.exports.quickcommands = function (parent) {
             }
             row.innerHTML = '<td>' + Q.qcStripHtml('t', cmds, canFilter, '<span class="qcLink" title="Move the commands into a menu in the toolbar" onclick="return pluginHandler.quickcommands.qcSetTermView(\'menu\')">Menu</span>' + (manage ? '&nbsp;&nbsp;' + manage : '')) + '</td>';
         }
+        Q.qcTermFit();
     };
 
 
@@ -700,18 +705,16 @@ module.exports.quickcommands = function (parent) {
         Q.qcDeskFit();
     };
 
-    // Take the strip's height off the desktop area. The core writes the area's
+    // Take a strip's height off the areas below it. The core writes each area's
     // height as an inline calc() on every resize; values we wrote ourselves are
     // recognised and skipped, anything else is treated as a fresh base value.
-    obj.qcDeskFit = function () {
-        var Q = pluginHandler.quickcommands, st = Q.qcState(), f = st.deskFit;
-        var area = document.getElementById('deskarea3x'), row = document.getElementById('qcDeskRow');
-        if (area == null) return;
+    // Returns true when a height was changed.
+    obj.qcAreaFit = function (f, areaIds, rowId, self) {
+        var row = document.getElementById(rowId), changed = false;
         if (f.obs == null) {
             try {
-                f.obs = new MutationObserver(function () { pluginHandler.quickcommands.qcDeskFit(); });
-                f.obs.observe(area, { attributes: true, attributeFilter: ['style'] });
-                if (typeof ResizeObserver == 'function') { f.ro = new ResizeObserver(function () { pluginHandler.quickcommands.qcDeskFit(); }); }
+                f.obs = new MutationObserver(function () { pluginHandler.quickcommands[self](); });
+                if (typeof ResizeObserver == 'function') { f.ro = new ResizeObserver(function () { pluginHandler.quickcommands[self](); }); }
             } catch (e) { }
         }
         if (f.ro && row && (f.roRow !== row)) { try { if (f.roRow) f.ro.unobserve(f.roRow); f.ro.observe(row); f.roRow = row; } catch (e) { } }
@@ -725,16 +728,41 @@ module.exports.quickcommands = function (parent) {
             return any ? out : null;
         };
         var same = function (x, y) { return (x != null) && (y != null) && (Math.abs(x.px - y.px) < 0.5) && (Math.abs(x.vh - y.vh) < 0.5); };
-        if (f.base == null) f.base = {}; if (f.mine == null) f.mine = {};
-        ['height', 'max-height'].forEach(function (p) {
-            var cur = parse(area.style.getPropertyValue(p));
-            if (!same(cur, f.mine[p])) { f.base[p] = cur; } // written by the core (or not a calc, e.g. full screen)
-            var base = f.base[p];
-            if (base == null) { f.mine[p] = null; return; }
-            var want = { vh: base.vh, px: base.px - h };
-            if (!same(cur, want)) { area.style.setProperty(p, 'calc(' + want.vh + 'vh - ' + (-want.px) + 'px)'); }
-            f.mine[p] = want;
+        if (f.areas == null) f.areas = {};
+        areaIds.forEach(function (id) {
+            var area = document.getElementById(id);
+            if (area == null) return;
+            var a = f.areas[id];
+            if ((a == null) || (a.el !== area)) {
+                a = f.areas[id] = { el: area, base: {}, mine: {} };
+                if (f.obs) { try { f.obs.observe(area, { attributes: true, attributeFilter: ['style'] }); } catch (e) { } }
+            }
+            ['height', 'max-height'].forEach(function (p) {
+                var cur = parse(area.style.getPropertyValue(p));
+                if (!same(cur, a.mine[p])) { a.base[p] = cur; } // written by the core (or not a calc, e.g. full screen)
+                var base = a.base[p];
+                if (base == null) { a.mine[p] = null; return; }
+                var want = { vh: base.vh, px: base.px - h };
+                if (!same(cur, want)) { area.style.setProperty(p, 'calc(' + want.vh + 'vh - ' + (-want.px) + 'px)'); changed = true; }
+                a.mine[p] = want;
+            });
         });
+        return changed;
+    };
+
+    obj.qcDeskFit = function () {
+        var Q = pluginHandler.quickcommands;
+        Q.qcAreaFit(Q.qcState().deskFit, ['deskarea3x'], 'qcDeskRow', 'qcDeskFit');
+    };
+
+    // The xterm area and its inner div both carry the core's height. After a
+    // change, xterm is refitted so its rows match the smaller area (the core's
+    // own fit on window resize runs before our adjustment).
+    obj.qcTermFit = function () {
+        var Q = pluginHandler.quickcommands;
+        if (Q.qcAreaFit(Q.qcState().termFit, ['termarea3x', 'termarea3xdiv'], 'qcTermRow', 'qcTermFit')) {
+            try { if ((typeof xtermfit != 'undefined') && (xtermfit != null) && (typeof xxcurrentView != 'undefined') && (xxcurrentView == 12)) { xtermfit.fit(); } } catch (e) { }
+        }
     };
 
     // Keyword filter state + focus restore. Renders replace the whole strip/menu/panel
