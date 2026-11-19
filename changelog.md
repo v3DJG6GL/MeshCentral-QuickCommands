@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 next version (see *Releases* in the readme).
 
 ## [Unreleased]
+
+## [0.4.3] - 2026-11-19
 ### Changed
 - Strip and menu: the *Menu* / *Show as strip* text links are replaced by one two-way switch with icons (strip /
   menu, the current view pressed), and *Manage…* by a gear button. Both look the same on the Terminal and Desktop
