@@ -52,6 +52,8 @@ module.exports.quickcommands = function (parent) {
         'qcSetTermView',
         'qcSetDeskView',
         'qcStripHtml',
+        'qcFolded',
+        'qcToggleFold',
         'qcIcon',
         'qcCtlHtml',
         'qcManageBtnHtml',
@@ -221,6 +223,18 @@ module.exports.quickcommands = function (parent) {
 .qcOneRow .qcStripB { order:1; flex:1 1 0; min-width:0; }
 .qcOneRow .qcTail { order:2; }
 .qcOneRow .qcGrow { display:none; }
+.qcFold { display:inline-flex; align-items:center; gap:3px; box-sizing:border-box; height:22px; margin:0 2px 0 -3px; padding:0 7px 0 3px; border:0; border-radius:11px; background:transparent; color:#5a6368; cursor:pointer; font:inherit; line-height:1; box-shadow:none; }
+.qcFold .qcLabel { margin-right:0; }
+.qcFold:hover { background:rgba(0,0,0,0.07); }
+.qcFold:hover .qcLabel { color:#1a1a1a; }
+.qcFold:focus-visible { outline:2px solid #1E6BD6; outline-offset:0; }
+.night .qcFold { color:#8b9591; }
+.night .qcFold:hover { background:rgba(255,255,255,0.08); }
+.night .qcFold:hover .qcLabel { color:#fff; }
+.night .qcFold:focus-visible { outline-color:#6ea8ff; }
+.qcFoldedS .qcStripH { margin-bottom:0; }
+.qcCount { font-size:11px; color:#5a6368; white-space:nowrap; }
+.night .qcCount { color:#8b9591; }
 .qcLabel { font-size:11px; color:#5a6368; text-transform:uppercase; letter-spacing:0.6px; margin-right:4px; white-space:nowrap; }
 .night .qcLabel { color:#8b9591; }
 .qcGroup { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding-right:10px; margin-right:4px; border-right:1px solid #b9c2bf; }
@@ -648,12 +662,33 @@ module.exports.quickcommands = function (parent) {
     // keys. With neither filter nor chips the head folds into the keys' row.
     obj.qcStripHtml = function (kind, cmds, canFilter, tail) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
+        // The label folds the strip down to its head row (remembered per surface).
+        var folded = Q.qcFolded(kind);
+        var fold = '<button type="button" class="qcFold" aria-expanded="' + !folded + '" title="' + (folded ? 'Show the commands' : 'Collapse the strip') + '" onclick="return pluginHandler.quickcommands.qcToggleFold(\'' + kind + '\')">'
+            + Q.qcIcon(folded ? 'chevR' : 'chevD') + '<span class="qcLabel">Quick commands</span></button>';
+        if (folded) {
+            return '<div class="qcStrip qcFoldedS"><div class="qcStripH">' + fold + '<span class="qcCount">' + cmds.length + ' command' + (cmds.length == 1 ? '' : 's') + '</span><span class="qcGrow"></span><span class="qcTail">' + tail + '</span></div></div>';
+        }
         var q = canFilter ? (st[kind + 'Filter'] || '') : '';
         var chips = Q.qcChipsHtml(kind, cmds);
         var shown = Q.qcFiltered(Q.qcWhereOf(kind), q, chips ? kind : null);
-        return '<div class="qcStrip' + ((canFilter || chips) ? '' : ' qcOneRow') + '"><div class="qcStripH"><span class="qcLabel">Quick commands</span>'
+        return '<div class="qcStrip' + ((canFilter || chips) ? '' : ' qcOneRow') + '"><div class="qcStripH">' + fold
             + (canFilter ? Q.qcFilterHtml(kind, q) : '') + chips + '<span class="qcGrow"></span><span class="qcTail">' + tail + '</span></div>'
             + '<div class="qcStripB">' + Q.qcKeysHtml(kind, shown, q) + '</div></div>';
+    };
+    // Strip fold state: 't' Terminal strip, 's' Desktop strip; kept in the
+    // browser's storage so it holds on every device page and across reloads.
+    obj.qcFolded = function (kind) {
+        try { return getstore('qc_fold_' + kind, '0') == '1'; } catch (e) { return false; }
+    };
+    obj.qcToggleFold = function (kind) {
+        var Q = pluginHandler.quickcommands;
+        try { putstore('qc_fold_' + kind, Q.qcFolded(kind) ? '0' : '1'); } catch (e) { }
+        if (kind == 's') { Q.qcRenderDesktop(); } else { Q.qcRenderTerminal(); }
+        // the button was rebuilt: keep the focus on it
+        var b = document.querySelector((kind == 's' ? '#qcDeskRow' : '#qcTermRow') + ' .qcFold');
+        if (b) { try { b.focus({ preventScroll: true }); } catch (e) { } }
+        return false;
     };
 
     // The "Quick commands ▾" button plus its dropdown, shared by the Terminal
@@ -665,6 +700,8 @@ module.exports.quickcommands = function (parent) {
             strip: '<rect x="1" y="5" width="4" height="5.5" rx="1"/><rect x="6" y="5" width="4" height="5.5" rx="1"/><rect x="11" y="5" width="4" height="5.5" rx="1"/><path d="M1 13.5h14"/>',
             // a button with a list dropping from it: the toolbar menu
             menu: '<rect x="1.5" y="1.5" width="13" height="4.5" rx="1"/><path d="M4 9h8M4 11.75h8M4 14.5h5"/>',
+            chevD: '<path d="M4 6l4 4 4-4" stroke-width="1.8"/>',
+            chevR: '<path d="M6 4l4 4-4 4" stroke-width="1.8"/>',
             gear: '<circle cx="8" cy="8" r="2"/><circle cx="8" cy="8" r="4.6"/><path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3.05 3.05l1.13 1.13M11.82 11.82l1.13 1.13M3.05 12.95l1.13-1.13M11.82 4.18l1.13-1.13" stroke-width="2"/>'
         }[name] || '';
         return '<svg class="qcIco" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>';
