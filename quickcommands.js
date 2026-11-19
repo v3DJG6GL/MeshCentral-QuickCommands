@@ -52,6 +52,9 @@ module.exports.quickcommands = function (parent) {
         'qcSetTermView',
         'qcSetDeskView',
         'qcStripHtml',
+        'qcIcon',
+        'qcCtlHtml',
+        'qcManageBtnHtml',
         'qcFilterHtml',
         'qcKeysHtml',
         'qcDeskFit',
@@ -266,7 +269,26 @@ module.exports.quickcommands = function (parent) {
 .night .qcMenuF { border-top-color:#333; }
 .qcMenuS { padding:6px 8px; border-bottom:1px solid #d8dedc; }
 .night .qcMenuS { border-bottom-color:#333; }
-.qcMenuS .qcFwrap, .qcMenuS .qcFin { width:100%; }
+.qcMenuT { display:flex; align-items:center; gap:6px; }
+.qcMenuT .qcFwrap { flex:1 1 auto; min-width:0; }
+.qcMenuS .qcFin { width:100%; }
+.qcCtl { display:inline-flex; align-items:center; gap:6px; vertical-align:middle; }
+.qcSegs { display:inline-flex; border:1px solid #b9c2bf; border-radius:11px; background:#fff; overflow:hidden; }
+.qcSeg, .qcIconBtn { display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; height:22px; margin:0; padding:0; border:0; background:transparent; color:#5a6368; cursor:pointer; font:inherit; line-height:1; box-shadow:none; }
+.qcSeg { width:28px; border-radius:0; }
+.qcSeg + .qcSeg { border-left:1px solid #b9c2bf; }
+.qcSeg:hover, .qcIconBtn:hover { background:#f4f8f7; color:#1a1a1a; }
+.qcSeg.on { background:#E6EDFB; color:#1E6BD6; cursor:default; }
+.qcIconBtn { width:24px; height:24px; border:1px solid #b9c2bf; border-radius:12px; background:#fff; }
+.qcSeg:focus-visible, .qcIconBtn:focus-visible { outline:2px solid #1E6BD6; outline-offset:-2px; }
+.qcIconBtn:focus-visible { outline-offset:1px; }
+.qcIco { display:block; flex:none; }
+.night .qcSegs, .night .qcIconBtn { background:#141a19; border-color:#3a4442; }
+.night .qcSeg + .qcSeg { border-left-color:#3a4442; }
+.night .qcSeg, .night .qcIconBtn { color:#b8c2bd; }
+.night .qcSeg:hover, .night .qcIconBtn:hover { background:#1d2422; color:#fff; }
+.night .qcSeg.on { background:#1D2A44; color:#6ea8ff; }
+.night .qcSeg:focus-visible, .night .qcIconBtn:focus-visible { outline-color:#6ea8ff; }
 .qcMenuI.act { outline:2px solid #1E6BD6; outline-offset:-2px; }
 .night .qcMenuI.act { outline-color:#6ea8ff; }
 .qcFwrap { position:relative; display:inline-flex; align-items:center; }
@@ -279,6 +301,7 @@ module.exports.quickcommands = function (parent) {
 .qcEmptyF { font-size:12px; color:#5a6368; padding:2px 4px; } .night .qcEmptyF { color:#8b9591; }
 .qcChipsF { display:inline-flex; gap:4px; flex-wrap:wrap; align-items:center; margin:0 4px; }
 .qcMenuS .qcChipsF { display:flex; margin:6px 0 0; }
+.qcMenuT .qcChipsF { margin:0; }
 .qcGchip { display:inline-flex; align-items:center; gap:4px; padding:1px 9px 2px; border:1px solid #b9c2bf; border-radius:11px; background:#fff; color:#5a6368; font-family:inherit; font-size:11px; font-weight:normal; cursor:pointer; line-height:14px; }
 .qcGchip:hover { background:#f4f8f7; color:#1a1a1a; }
 .qcGchip.on { background:#E6EDFB; border-color:#1E6BD6; color:#1E6BD6; font-weight:bold; }
@@ -562,7 +585,7 @@ module.exports.quickcommands = function (parent) {
         var cmds = Q.qcVisible('terminal');
         var view = getstore('qc_termview', (st.config && st.config.settings) ? st.config.settings.terminalView : 'strip');
         if ((st.config == null) || (cmds.length == 0)) { if (row) row.remove(); if (wrap) wrap.remove(); Q.qcTermFit(); return; }
-        var manage = st.canManage ? '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcOpenManage()">Manage…</span>' : '';
+        var ctl = Q.qcCtlHtml('term', view);
         // The keyword filter earns its space once the device has 5+ keys.
         var canFilter = (cmds.length >= 5);
 
@@ -579,7 +602,7 @@ module.exports.quickcommands = function (parent) {
         } else if (wrap) { wrap.remove(); wrap = null; }
         if (view == 'menu') {
             if (row) row.remove();
-            wrap.innerHTML = '<span class="qcChipSlot" data-scope="node">' + chip + '</span>' + Q.qcMenuHtml('m', cmds, canFilter, '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcSetTermView(\'strip\')">Show as strip</span>' + manage);
+            wrap.innerHTML = '<span class="qcChipSlot" data-scope="node">' + chip + '</span>' + Q.qcMenuHtml('m', cmds, canFilter, ctl);
         } else {
             if (wrap) { wrap.innerHTML = '<span class="qcChipSlot" data-scope="node">' + chip + '</span>'; }
             st.menuOpen = false;
@@ -589,7 +612,7 @@ module.exports.quickcommands = function (parent) {
                 row = document.createElement('tr'); row.id = 'qcTermRow';
                 first.insertAdjacentElement('afterend', row);
             }
-            row.innerHTML = '<td>' + Q.qcStripHtml('t', cmds, canFilter, '<span class="qcLink" title="Move the commands into a menu in the toolbar" onclick="return pluginHandler.quickcommands.qcSetTermView(\'menu\')">Menu</span>' + (manage ? '&nbsp;&nbsp;' + manage : '')) + '</td>';
+            row.innerHTML = '<td>' + Q.qcStripHtml('t', cmds, canFilter, ctl) + '</td>';
         }
         Q.qcTermFit();
     };
@@ -635,7 +658,38 @@ module.exports.quickcommands = function (parent) {
 
     // The "Quick commands ▾" button plus its dropdown, shared by the Terminal
     // and Desktop menus. kind picks the filter state, footer the links at the bottom.
-    obj.qcMenuHtml = function (kind, cmds, canFilter, footer) {
+    // Inline icons (16px grid, drawn with currentColor so they follow the theme).
+    obj.qcIcon = function (name) {
+        var p = {
+            // three keys in a row: the keypad strip
+            strip: '<rect x="1" y="5" width="4" height="5.5" rx="1"/><rect x="6" y="5" width="4" height="5.5" rx="1"/><rect x="11" y="5" width="4" height="5.5" rx="1"/><path d="M1 13.5h14"/>',
+            // a button with a list dropping from it: the toolbar menu
+            menu: '<rect x="1.5" y="1.5" width="13" height="4.5" rx="1"/><path d="M4 9h8M4 11.75h8M4 14.5h5"/>',
+            gear: '<circle cx="8" cy="8" r="2"/><circle cx="8" cy="8" r="4.6"/><path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3.05 3.05l1.13 1.13M11.82 11.82l1.13 1.13M3.05 12.95l1.13-1.13M11.82 4.18l1.13-1.13" stroke-width="2"/>'
+        }[name] || '';
+        return '<svg class="qcIco" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>';
+    };
+
+    // The controls at the end of a strip's head row and at the top of the menu:
+    // a two-way view switch (current view pressed) and, for admins, Manage.
+    // surface: 'term' or 'desk'; view: 'strip' or 'menu'.
+    obj.qcCtlHtml = function (surface, view) {
+        var Q = pluginHandler.quickcommands;
+        var fn = (surface == 'desk') ? 'qcSetDeskView' : 'qcSetTermView';
+        var seg = function (v, label) {
+            var on = (view == v);
+            return '<button type="button" class="qcSeg' + (on ? ' on' : '') + '" aria-pressed="' + on + '" aria-label="' + label + '" title="' + label + (on ? ' (current)' : '') + '"'
+                + ' onclick="event.stopPropagation(); return ' + (on ? 'false' : 'pluginHandler.quickcommands.' + fn + '(\'' + v + '\')') + '">' + Q.qcIcon(v) + '</button>';
+        };
+        return '<span class="qcCtl"><span class="qcSegs" role="group" aria-label="Show quick commands as">' + seg('strip', 'Show as strip') + seg('menu', 'Show as menu') + '</span>' + Q.qcManageBtnHtml() + '</span>';
+    };
+    obj.qcManageBtnHtml = function () {
+        var Q = pluginHandler.quickcommands;
+        if (!Q.qcState().canManage) return '';
+        return '<button type="button" class="qcIconBtn" aria-label="Manage commands" title="Manage commands" onclick="event.stopPropagation(); return pluginHandler.quickcommands.qcOpenManage()">' + Q.qcIcon('gear') + '</button>';
+    };
+
+    obj.qcMenuHtml = function (kind, cmds, canFilter, ctl) {
         var Q = pluginHandler.quickcommands, st = Q.qcState();
         var where = Q.qcWhereOf(kind);
         var q = canFilter ? (st[kind + 'Filter'] || '') : '';
@@ -646,13 +700,10 @@ module.exports.quickcommands = function (parent) {
         var bcls = (typeof showModal === 'function') ? ' class="btn btn-secondary btn-sm"' : '';
         var x = '<input type="button"' + bcls + ' value="Quick commands ▾" onclick="return pluginHandler.quickcommands.qcToggleMenu(event)" onkeypress="return false" onkeydown="return false" />';
         x += '<div class="qcMenu" style="display:' + (st.menuOpen ? '' : 'none') + '">';
-        if (canFilter || chips) {
-            x += '<div class="qcMenuS">';
-            if (canFilter) {
-                x += Q.qcFilterHtml(kind, q, 'Filter commands');
-            }
-            x += chips + '</div>';
-        }
+        // Top row: the filter and the view switch / Manage controls, the same
+        // ones as on the strip; the group chips go below it, or into the top
+        // row when there is no filter.
+        x += '<div class="qcMenuS"><div class="qcMenuT">' + (canFilter ? Q.qcFilterHtml(kind, q, 'Filter commands') : chips + '<span class="qcGrow"></span>') + ctl + '</div>' + (canFilter ? chips : '') + '</div>';
         if (shown.length == 0) {
             x += '<div class="qcEmpty">No commands match ' + (q ? '"' + Q.qcEsc(q) + '"' : 'the chosen groups') + '. <span class="qcLink" onclick="return pluginHandler.quickcommands.qcClearFilter(\'' + kind + '\')">Clear filter</span></div>';
         }
@@ -668,7 +719,7 @@ module.exports.quickcommands = function (parent) {
                 idx++;
             });
         });
-        x += '<div class="qcMenuF">' + footer + '</div></div>';
+        x += '</div>';
         return x;
     };
 
@@ -683,7 +734,7 @@ module.exports.quickcommands = function (parent) {
         var cmds = Q.qcVisible('desktop');
         var view = getstore('qc_deskview', (st.config && st.config.settings) ? st.config.settings.desktopView : 'menu');
         if ((st.config == null) || (cmds.length == 0)) { if (wrap) wrap.remove(); if (row) row.remove(); Q.qcDeskFit(); return; }
-        var manage = st.canManage ? '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcOpenManage()">Manage…</span>' : '';
+        var ctl = Q.qcCtlHtml('desk', view);
         var canFilter = (cmds.length >= 5);
         var chip = Q.qcChipHtml('node');
         if ((view == 'menu') || chip) {
@@ -697,10 +748,10 @@ module.exports.quickcommands = function (parent) {
             if (wrap) { wrap.innerHTML = '<span class="qcChipSlot" data-scope="node">' + chip + '</span>'; }
             st.menuOpen = false;
             if (row == null) { row = document.createElement('div'); row.id = 'qcDeskRow'; bar.appendChild(row); }
-            row.innerHTML = Q.qcStripHtml('s', cmds, canFilter, '<span class="qcLink" title="Move the commands into a menu in the toolbar" onclick="return pluginHandler.quickcommands.qcSetDeskView(\'menu\')">Menu</span>' + (manage ? '&nbsp;&nbsp;' + manage : ''));
+            row.innerHTML = Q.qcStripHtml('s', cmds, canFilter, ctl);
         } else {
             if (row) row.remove();
-            wrap.innerHTML = '<span class="qcChipSlot" data-scope="node">' + chip + '</span>' + Q.qcMenuHtml('d', cmds, canFilter, '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcSetDeskView(\'strip\')">Show as strip</span>' + manage);
+            wrap.innerHTML = '<span class="qcChipSlot" data-scope="node">' + chip + '</span>' + Q.qcMenuHtml('d', cmds, canFilter, ctl);
         }
         Q.qcDeskFit();
     };
@@ -868,7 +919,7 @@ module.exports.quickcommands = function (parent) {
         var x = '<div class="qcPanel"><div class="qcPanelH"><span>Quick commands</span><span class="qcChipSlot" data-scope="node">' + Q.qcChipHtml('node') + '</span><span class="qcHint">Output opens in a window when the command finishes</span><span class="qcGrow"></span>';
         x += chips;
         if (canFilter) x += Q.qcFilterHtml('g', q);
-        x += (st.canManage ? '<span class="qcLink" onclick="return pluginHandler.quickcommands.qcOpenManage()">Manage…</span>' : '') + '</div><div class="qcPanelB">';
+        x += Q.qcManageBtnHtml() + '</div><div class="qcPanelB">';
         x += Q.qcKeysHtml('g', shown, q);
         x += '</div></div>';
         panel.innerHTML = x;

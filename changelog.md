@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 next version (see *Releases* in the readme).
 
 ## [Unreleased]
+### Changed
+- Strip and menu: the *Menu* / *Show as strip* text links are replaced by one two-way switch with icons (strip /
+  menu, the current view pressed), and *Manage…* by a gear button. Both look the same on the Terminal and Desktop
+  strips and in the menu; the gear also replaces *Manage…* in the General panel header
+- Menu: the switch and the gear sit at the top of the menu, next to the filter field, instead of at the bottom;
+  without a filter field the group chips share that top row
 
 ## [0.4.2] - 2026-11-18
 ### Fixed
