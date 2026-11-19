@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 next version (see *Releases* in the readme).
 
 ## [Unreleased]
+
+## [0.5.0] - 2026-11-19
 ### Added
 - Terminal and Desktop strips can be collapsed: click *Quick commands* (with the ▾ / ▸ chevron) at the start of the
   strip. A collapsed strip is a single row with the number of commands, the view switch and the gear; on the
